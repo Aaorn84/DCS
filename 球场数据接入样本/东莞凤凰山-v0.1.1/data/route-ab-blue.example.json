@@ -1,0 +1,369 @@
+{
+  "schema_version": "0.1.1",
+  "status": "example_selection_only_not_official_route",
+  "spatial_use_allowed": false,
+  "holes": [
+    {
+      "round_hole_number": 1,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475519,
+      "source_hole_number": 1,
+      "par": 4,
+      "published_yardage": 360,
+      "allocation_raw": 4,
+      "source_path": "/courses/0/tees/1/holes/0",
+      "updated_on_raw": "2026-09-27T11:50:58.16",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:50:41.517",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 2,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475520,
+      "source_hole_number": 2,
+      "par": 3,
+      "published_yardage": 146,
+      "allocation_raw": 7,
+      "source_path": "/courses/0/tees/1/holes/1",
+      "updated_on_raw": "2026-09-27T11:51:07.643",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:38:35.787",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 3,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475521,
+      "source_hole_number": 3,
+      "par": 5,
+      "published_yardage": 490,
+      "allocation_raw": 6,
+      "source_path": "/courses/0/tees/1/holes/2",
+      "updated_on_raw": "2026-09-27T11:51:29.63",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:38:44.803",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 4,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475522,
+      "source_hole_number": 4,
+      "par": 3,
+      "published_yardage": 154,
+      "allocation_raw": 9,
+      "source_path": "/courses/0/tees/1/holes/3",
+      "updated_on_raw": "2026-09-27T11:51:40.113",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:38:50.93",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 5,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475523,
+      "source_hole_number": 5,
+      "par": 5,
+      "published_yardage": 526,
+      "allocation_raw": 5,
+      "source_path": "/courses/0/tees/1/holes/4",
+      "updated_on_raw": "2026-09-27T11:51:54.07",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:38:58.523",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 6,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475524,
+      "source_hole_number": 6,
+      "par": 4,
+      "published_yardage": 365,
+      "allocation_raw": 8,
+      "source_path": "/courses/0/tees/1/holes/5",
+      "updated_on_raw": "2026-09-27T11:39:06.65",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:39:06.65",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 7,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475525,
+      "source_hole_number": 7,
+      "par": 4,
+      "published_yardage": 370,
+      "allocation_raw": 3,
+      "source_path": "/courses/0/tees/1/holes/6",
+      "updated_on_raw": "2026-09-27T11:53:15.077",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:39:15.447",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 8,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475526,
+      "source_hole_number": 8,
+      "par": 4,
+      "published_yardage": 313,
+      "allocation_raw": 2,
+      "source_path": "/courses/0/tees/1/holes/7",
+      "updated_on_raw": "2026-09-27T11:39:21.963",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:39:21.98",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 9,
+      "course_id": 30914,
+      "tee_id": 650688,
+      "hole_id": 475527,
+      "source_hole_number": 9,
+      "par": 4,
+      "published_yardage": 365,
+      "allocation_raw": 1,
+      "source_path": "/courses/0/tees/1/holes/8",
+      "updated_on_raw": "2026-09-27T11:54:06.25",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:39:38.293",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 10,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475528,
+      "source_hole_number": 1,
+      "par": 3,
+      "published_yardage": 172,
+      "allocation_raw": 7,
+      "source_path": "/courses/1/tees/1/holes/0",
+      "updated_on_raw": "2026-09-27T11:54:17.143",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:39:46.98",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 11,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475529,
+      "source_hole_number": 2,
+      "par": 5,
+      "published_yardage": 570,
+      "allocation_raw": 13,
+      "source_path": "/courses/1/tees/1/holes/1",
+      "updated_on_raw": "2026-09-27T11:39:57.06",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:39:57.077",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 12,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475530,
+      "source_hole_number": 3,
+      "par": 3,
+      "published_yardage": 130,
+      "allocation_raw": 11,
+      "source_path": "/courses/1/tees/1/holes/2",
+      "updated_on_raw": "2026-09-27T11:54:39.19",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:40:30.827",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 13,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475532,
+      "source_hole_number": 4,
+      "par": 4,
+      "published_yardage": 370,
+      "allocation_raw": 9,
+      "source_path": "/courses/1/tees/1/holes/3",
+      "updated_on_raw": "2026-09-27T11:55:00.1",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:41:01.16",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 14,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475533,
+      "source_hole_number": 5,
+      "par": 4,
+      "published_yardage": 336,
+      "allocation_raw": 15,
+      "source_path": "/courses/1/tees/1/holes/4",
+      "updated_on_raw": "2026-09-27T11:55:17.227",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:41:32.817",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 15,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475534,
+      "source_hole_number": 6,
+      "par": 4,
+      "published_yardage": 415,
+      "allocation_raw": 5,
+      "source_path": "/courses/1/tees/1/holes/5",
+      "updated_on_raw": "2026-09-27T11:55:51.057",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:42:10.9",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 16,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475535,
+      "source_hole_number": 7,
+      "par": 3,
+      "published_yardage": 166,
+      "allocation_raw": 3,
+      "source_path": "/courses/1/tees/1/holes/6",
+      "updated_on_raw": "2026-09-27T11:56:09.667",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:42:30.383",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 17,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475531,
+      "source_hole_number": 8,
+      "par": 5,
+      "published_yardage": 580,
+      "allocation_raw": 17,
+      "source_path": "/courses/1/tees/1/holes/7",
+      "updated_on_raw": "2026-09-27T11:56:47.25",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:43:09.48",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    },
+    {
+      "round_hole_number": 18,
+      "course_id": 30915,
+      "tee_id": 650692,
+      "hole_id": 475536,
+      "source_hole_number": 9,
+      "par": 5,
+      "published_yardage": 560,
+      "allocation_raw": 1,
+      "source_path": "/courses/1/tees/1/holes/8",
+      "updated_on_raw": "2026-09-27T11:43:44.453",
+      "data_stats_raw": {
+        "gpsDate": "2026-09-27T11:43:44.453",
+        "surveyDate": null,
+        "maxMeshDate": null,
+        "minMeshDate": null,
+        "maxRenderDate": null,
+        "minRenderDate": null
+      }
+    }
+  ],
+  "par": 72,
+  "published_yardage": 6388
+}

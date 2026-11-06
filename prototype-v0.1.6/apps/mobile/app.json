@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "电子球童",
+    "slug": "caddie-companion",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.caddiecompanion.preview"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.caddiecompanion.preview"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "允许电子球童听取你主动发起的语音交流。",
+          "speechRecognitionPermission": "将语音转成文字，用于专业建议、陪伴和球洞结束后的确认记录。"
+        }
+      ]
+    ]
+  }
+}

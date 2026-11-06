@@ -1,0 +1,143 @@
+[
+  {
+    "action": "create"
+  },
+  {
+    "event": {
+      "event_id": "open",
+      "type": "state_transition",
+      "source": "voice",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "explicit": true,
+      "value": {
+        "kind": "open_shot",
+        "shot_id": "s1",
+        "hole": 1,
+        "stroke_number": null
+      }
+    }
+  },
+  {
+    "event": {
+      "event_id": "advice",
+      "type": "system_advice",
+      "source": "system",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "candidates": [
+        {
+          "id": "a",
+          "value": {
+            "club": "8i",
+            "target": "green center"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "event": {
+      "event_id": "intent",
+      "type": "player_intent",
+      "source": "voice",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "candidates": [
+        {
+          "id": "a",
+          "value": {
+            "club": "7i"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "event": {
+      "event_id": "decision",
+      "type": "decision_commitment",
+      "source": "voice",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "explicit": true,
+      "candidates": [
+        {
+          "id": "a",
+          "value": {
+            "club": "8i"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "event": {
+      "event_id": "execution",
+      "type": "execution_report",
+      "source": "voice",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "candidates": [
+        {
+          "id": "a",
+          "value": {
+            "club": "8i"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "event": {
+      "event_id": "outcome",
+      "type": "shot_outcome",
+      "source": "voice",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "candidates": [
+        {
+          "id": "a",
+          "value": {
+            "longitudinal": "short",
+            "lateral": "right"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "event": {
+      "event_id": "cause",
+      "type": "feel_or_cause",
+      "source": "voice",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "candidates": [
+        {
+          "id": "a",
+          "value": {
+            "self_report": "没打实"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "event": {
+      "event_id": "fix",
+      "type": "correction",
+      "source": "user_correction",
+      "occurred_at": "2026-11-06T08:00:00+08:00",
+      "explicit": true,
+      "candidates": [
+        {
+          "id": "a",
+          "corrects_node": "execution-node",
+          "value": {
+            "club": "9i"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "action": "state"
+  },
+  {
+    "action": "replay"
+  }
+]

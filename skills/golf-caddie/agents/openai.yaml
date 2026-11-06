@@ -1,0 +1,4 @@
+interface:
+  display_name: "电子球童"
+  short_description: "业余球手的球童与伙伴；自愿开启教练后，一个重点，跨场跟进与巩固"
+  default_prompt: "使用 $golf-caddie，做我的专业球童和伙伴，陪我聊球场与生活，并按我的意愿了解与记住我的喜好。"

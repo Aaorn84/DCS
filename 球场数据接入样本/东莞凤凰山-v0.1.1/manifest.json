@@ -1,0 +1,12 @@
+{
+  "version": "0.1.1",
+  "files": {
+    "README.md": "cfe445860873a4dff0dadaed123695b90cd81ddadd6dfe532930e539f6df6dad",
+    "coordinate-confirmation.json": "cf1100b1863cd7ae5e685b04aaecb70df69eeb00a3360c170fd803291bec62f3",
+    "data/course.normalized.json": "299106df3e32748cffd1eef13c3dac3182e6e9f15d7f77332ae74157e1788ab5",
+    "data/quality-report.json": "26b952dbdaa517729cd34d6a323d61eac293a0b3c3c31ddcc1c4fa9eb2f4c7d8",
+    "data/route-ab-blue.example.json": "efae8913e0880ed00cd3d88f371f0bd6bebd00c6ca969ce9af3d3dc830b631d5",
+    "import_course.py": "29d5d6cadf09264829780df6e94558faa3e7edbfeec5e1d4b22b3d4ccf913737",
+    "test_sample.py": "f0f8c01850c243a6967105eeaa4dc4c3ad971ae776522d50f0bafd882f7aa6c8"
+  }
+}

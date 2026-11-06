@@ -1,0 +1,23 @@
+{
+  "skill_version": "0.1.2",
+  "weather_engine_version": "0.1.1",
+  "shot_evidence_component_version": "0.1.0",
+  "test_first": {
+    "phase": "red_before_implementation",
+    "new_tests": 8,
+    "failures": 0,
+    "errors": 13
+  },
+  "green": {
+    "tests_run": 53,
+    "failures": 0,
+    "errors": 0
+  },
+  "not_validated": [
+    "live LLM single-question dialogue",
+    "GPS/mobile event collection",
+    "voice/earphone background behavior",
+    "real weather API",
+    "field carry/drift precision"
+  ]
+}

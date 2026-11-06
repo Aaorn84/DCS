@@ -1,0 +1,66 @@
+{
+  "mode": "research",
+  "target_distance": 160,
+  "distance_unit": "yd",
+  "target_bearing_deg": 0,
+  "height_difference_m": null,
+  "max_weather_age_seconds": 1800,
+  "weather": {
+    "temperature_c": 12,
+    "relative_humidity_pct": 70,
+    "station_pressure_pa": 101325,
+    "pressure_kind": "station",
+    "wind_speed_mps": 3,
+    "wind_from_deg": 0,
+    "source": "synthetic_test_not_observation",
+    "observed_at": "2026-11-06T06:50:00Z",
+    "wind_sampling_note": "synthetic uniform wind at all heights"
+  },
+  "baseline": {
+    "temperature_c": 20,
+    "relative_humidity_pct": 50,
+    "station_pressure_pa": 101325,
+    "pressure_kind": "station",
+    "wind_speed_mps": 0,
+    "wind_from_deg": null,
+    "source": "synthetic_test_not_observation",
+    "observed_at": "2026-11-06T06:50:00Z",
+    "wind_sampling_note": "synthetic uniform wind at all heights"
+  },
+  "profile": {
+    "profile_id": "synthetic_iron_NOT_PLAYER_CALIBRATION",
+    "distance_type": "carry",
+    "coefficient_source": "synthetic numerics fixture; NOT measured or validated",
+    "launch_angle_deg": 20,
+    "drag_coefficient": 0.25,
+    "lift_coefficient": 0.12,
+    "mass_kg": 0.0459,
+    "diameter_m": 0.0427,
+    "speed_min_mps": 35,
+    "speed_max_mps": 65
+  },
+  "weather_scenarios": [
+    {
+      "temperature_c": 10,
+      "relative_humidity_pct": 70,
+      "station_pressure_pa": 101325,
+      "pressure_kind": "station",
+      "wind_speed_mps": 5,
+      "wind_from_deg": 15,
+      "source": "synthetic_test_not_observation",
+      "observed_at": "2026-11-06T06:50:00Z",
+      "wind_sampling_note": "synthetic uniform wind at all heights"
+    },
+    {
+      "temperature_c": 14,
+      "relative_humidity_pct": 60,
+      "station_pressure_pa": 101325,
+      "pressure_kind": "station",
+      "wind_speed_mps": 2,
+      "wind_from_deg": 345,
+      "source": "synthetic_test_not_observation",
+      "observed_at": "2026-11-06T06:50:00Z",
+      "wind_sampling_note": "synthetic uniform wind at all heights"
+    }
+  ]
+}

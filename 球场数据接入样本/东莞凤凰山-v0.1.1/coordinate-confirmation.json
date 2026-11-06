@@ -1,0 +1,11 @@
+{
+  "public_id": "B87QFJP7",
+  "source_sha256": "34b6acebdcbbc08614dc40ab7707ad88ad42317dc2c6906cb808447765c7e607",
+  "crs": "WGS84",
+  "confirmed_by": "user",
+  "confirmed_on": "2026-11-06",
+  "evidence": "用户明确说明：坐标系使用的是 WGS84",
+  "scope": "本版本凤凰山文件中的经纬度坐标；不自动推广到其他球场或未来文件版本",
+  "field_accuracy_validated": false,
+  "coordinate_conversion_applied": false
+}

@@ -1,0 +1,27 @@
+name: Tests
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Skill and state engine
+        working-directory: skills/golf-caddie
+        run: python -B -m unittest discover -s tests -p 'test_*.py'
+      - name: API integration
+        working-directory: prototype-v0.1.6
+        run: python -B -m unittest discover -s tests -p 'test_*.py'
+      - name: Client logic
+        working-directory: prototype-v0.1.6
+        run: node --experimental-transform-types --test tests/domain.test.mjs tests/voice.test.mjs
+      - name: Phoenix sample
+        working-directory: 球场数据接入样本/东莞凤凰山-v0.1.1
+        run: python -B -m unittest -q test_sample

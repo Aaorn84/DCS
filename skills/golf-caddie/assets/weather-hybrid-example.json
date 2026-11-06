@@ -1,0 +1,42 @@
+{
+  "mode": "hybrid",
+  "rules_mode": "practice",
+  "target_distance": 177,
+  "distance_unit": "yd",
+  "target_bearing_deg": 0,
+  "height_difference_m": null,
+  "max_weather_age_seconds": 1800,
+  "profile": {
+    "club_id": "7i",
+    "flight_group": "stock",
+    "ball_id": "test-ball",
+    "source": "synthetic carry baseline",
+    "distance_type": "carry",
+    "distance_unit": "yd",
+    "baseline_carry": 175,
+    "baseline_id": "test-ref"
+  },
+  "baseline": {
+    "source": "synthetic-not-field-weather",
+    "observed_at": "2026-11-06T06:55:00Z",
+    "temperature_c": 20,
+    "relative_humidity_pct": 50,
+    "station_pressure_pa": 101325,
+    "pressure_kind": "station",
+    "wind_speed_mps": 0,
+    "wind_from_deg": null,
+    "wind_gust_mps": 0,
+    "reference_id": "test-ref"
+  },
+  "weather": {
+    "source": "synthetic-not-field-weather",
+    "observed_at": "2026-11-06T06:55:00Z",
+    "temperature_c": 12,
+    "relative_humidity_pct": 70,
+    "station_pressure_pa": null,
+    "pressure_kind": "station",
+    "wind_speed_mps": 3,
+    "wind_from_deg": 0,
+    "wind_gust_mps": 5
+  }
+}

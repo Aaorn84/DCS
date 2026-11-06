@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+dist/
+__pycache__/
+*.py[cod]
+*.sqlite*
+*.db
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+demo-local/*preview.png

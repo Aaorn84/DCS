@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.1",
+  "source_sha256": "34b6acebdcbbc08614dc40ab7707ad88ad42317dc2c6906cb808447765c7e607",
+  "counts": {
+    "courses": 3,
+    "physical_holes": 27,
+    "tee_configurations": 13,
+    "tee_hole_records": 117,
+    "geometry_records": 171,
+    "parts": 394,
+    "vertices": 23640,
+    "explicitly_closed_parts": 0
+  },
+  "geometry_types": {
+    "FairwayTrace": 27,
+    "HoleBoundry": 27,
+    "WaterTrace": 27,
+    "TeeboxTrace": 27,
+    "BunkerTrace": 26,
+    "GreenTrace": 27,
+    "VegetationTrace": 1,
+    "CartpathTrace": 9
+  },
+  "warnings": [
+    "WGS84 confirmed by user; field accuracy not validated",
+    "Open source paths: polygon topology not verified",
+    "HoleBoundry is not confirmed OB",
+    "WaterTrace is not a designated penalty-area boundary",
+    "Reference coordinates do not identify actual ball positions or individual colored tees",
+    "Missing bunker record does not prove absence of bunker",
+    "Source timestamps have no timezone",
+    "No elevation or green slope data; slope_rating is a separate tee rating field"
+  ]
+}

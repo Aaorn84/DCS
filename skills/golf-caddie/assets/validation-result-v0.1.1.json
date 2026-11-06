@@ -1,0 +1,40 @@
+{
+  "version": "0.1.1",
+  "test_first": {
+    "phase": "red_before_implementation",
+    "new_test_methods": 13,
+    "failure_entries": 3,
+    "error_entries": 11,
+    "note": "unittest subtest entries may exceed test method count",
+    "failing_cases": [
+      "test_calm_yard_display_does_not_invent_one_yard_range (test_weather_regressions.WeatherReleaseRegressions.test_calm_yard_display_does_not_invent_one_yard_range)",
+      "test_crosswind_samples_do_not_satisfy_calm_training_coverage (test_weather_regressions.WeatherReleaseRegressions.test_crosswind_samples_do_not_satisfy_calm_training_coverage)",
+      "test_future_baseline_must_not_be_used_for_current_estimate (test_weather_regressions.WeatherReleaseRegressions.test_future_baseline_must_not_be_used_for_current_estimate)",
+      "test_invalid_clock_type_is_input_error_not_internal_exception (test_weather_regressions.WeatherReleaseRegressions.test_invalid_clock_type_is_input_error_not_internal_exception) (clock='2026-11-06')",
+      "test_invalid_clock_type_is_input_error_not_internal_exception (test_weather_regressions.WeatherReleaseRegressions.test_invalid_clock_type_is_input_error_not_internal_exception) (clock='123')",
+      "test_unknown_coefficient_keys_are_rejected_at_input_boundary (test_weather_regressions.WeatherReleaseRegressions.test_unknown_coefficient_keys_are_rejected_at_input_boundary)",
+      "test_existing_different_release_not_overwritten (test_skill_package.SkillPackageTests.test_existing_different_release_not_overwritten)",
+      "test_hidden_files_caches_and_unrelated_user_files_excluded (test_skill_package.SkillPackageTests.test_hidden_files_caches_and_unrelated_user_files_excluded)",
+      "test_identical_sources_produce_identical_archives (test_skill_package.SkillPackageTests.test_identical_sources_produce_identical_archives)",
+      "test_manifest_contains_payload_hash_and_size (test_skill_package.SkillPackageTests.test_manifest_contains_payload_hash_and_size)",
+      "test_symlink_cannot_import_files_outside_skill (test_skill_package.SkillPackageTests.test_symlink_cannot_import_files_outside_skill)",
+      "test_tampered_archive_is_rejected (test_skill_package.SkillPackageTests.test_tampered_archive_is_rejected)",
+      "test_unsafe_or_undeclared_members_rejected_without_extracting (test_skill_package.SkillPackageTests.test_unsafe_or_undeclared_members_rejected_without_extracting)",
+      "test_versioned_root_and_standard_entry (test_skill_package.SkillPackageTests.test_versioned_root_and_standard_entry)"
+    ]
+  },
+  "green": {
+    "total_tests": 45,
+    "failures": 0,
+    "errors": 0,
+    "command": "python3 -B -m unittest discover -s tests -p 'test_*.py' -v"
+  },
+  "scope": "offline numerical, API boundaries, calibration data gates, packaging; synthetic weather/carry fixtures",
+  "not_tested": [
+    "real weather API",
+    "GPS/mobile/earphone integration",
+    "live language-model dialogue behavior",
+    "field carry/drift accuracy",
+    "professional caddie blind review"
+  ]
+}
