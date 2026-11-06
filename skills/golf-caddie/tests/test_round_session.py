@@ -7,7 +7,7 @@ from round_state import Engine, StateError, valid_ref
 
 COURSE = dict(course_id='synthetic', map_version='1', crs='WGS84', synthetic=True,
  holes=[dict(number=1, par=4, bbox=[120.999,30.999,121.004,31.002], objects=[dict(id='g1', kind='green_center',latitude=31.001,longitude=121.003)]),
-        dict(number=2, par=4, bbox=[121.009,30.999,121.014,31.002], objects=[dict(id='g2',kind='green_center',latitude=31.001,longitude=121.013)])])
+        dict(number=2, par=4, bbox=[121.009,30.999,121.014,31.002], tee_bbox=[121.009,30.999,121.014,31.002], objects=[dict(id='g2',kind='green_center',latitude=31.001,longitude=121.013)])])
 STAMP='2026-11-06T00:00:00Z'
 NOW=1793923200
 
@@ -22,6 +22,12 @@ class SessionTests(unittest.TestCase):
     def course(self):return self.event('course', data=COURSE)
     def gps(self, longitude=121.001, **kw):
         return self.event('gps', data=dict(latitude=31, longitude=longitude, accuracy_m=2), **kw)
+    def cross(self):
+        from datetime import datetime, timezone
+        for dt in (60,68,76):
+            self.n+=1
+            result=self.e.command('r',str(self.n),'session_event',dict(type='gps',event_id='e'+str(self.n),observed_at=datetime.fromtimestamp(NOW+dt,timezone.utc).isoformat(),data=dict(latitude=31,longitude=121.011,accuracy_m=2)),now=NOW+dt)
+        return result
     def voice(self,text,**kw):return self.event('voice',text=text,**kw)
     def score(self):
         self.course();self.gps();self.voice('这洞六杆');self.voice('两推');return self.voice('没有罚杆')
@@ -87,7 +93,7 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(self.voice('六杆')['text'],'')
         self.voice('继续');self.assertFalse(self.e.state('r')['facts']['context.quiet']['value'])
     def test_retract_preserves_hole_and_course(self):
-        self.score();self.voice('确认');self.gps(121.011)
+        self.score();self.voice('确认');self.cross()
         self.voice('撤销上一条记分')
         s=self.e.state('r');self.assertIsNone(s['facts']['holes.1.total']['value'])
         self.assertEqual(s['facts']['context.active_hole']['value'],2)
@@ -119,15 +125,15 @@ class SessionTests(unittest.TestCase):
 
     def test_proactive_previous_score_binds_to_previous_hole(self):
         self.course();self.gps();self.voice('换洞时提醒记分')
-        self.assertIn('上一洞',self.gps(121.011)['text'])
-        self.assertEqual(self.gps(121.011)['text'],'')
+        self.assertIn('上一洞',self.cross()['text'])
+        self.assertEqual(self.cross()['text'],'')
         self.voice('五杆');self.voice('两推');self.voice('确认')
         self.assertEqual(self.e.state('r')['facts']['holes.1.total']['value'],5)
         self.assertNotIn('holes.2.total',self.e.state('r')['facts'])
     def test_no_proactive_without_agreement(self):
         self.course();self.gps()
-        self.assertEqual(self.gps(121.011)['text'],'')
+        self.assertEqual(self.cross()['text'],'')
     def test_quiet_suppresses_agreed_proactive_prompt(self):
         self.course();self.gps();self.voice('换洞时提醒记分');self.voice('安静')
-        self.assertEqual(self.gps(121.011)['text'],'')
+        self.assertEqual(self.cross()['text'],'')
         self.assertFalse(any(q['status']=='pending' for q in self.e.state('r')['questions'].values()))

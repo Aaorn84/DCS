@@ -1,0 +1,16 @@
+{
+  "prototype": "prototype",
+  "球场数据接入样本/东莞凤凰山-v0.1.1": "球场数据接入样本/东莞凤凰山",
+  "shot-chain-example-v0.1.0.json": "shot-chain-example.json",
+  "validation-v0.1.1.md": "validation-weather.md",
+  "validation-v0.1.2.md": "validation-shot-evidence.md",
+  "validation-v0.1.3.md": "validation-state-architecture.md",
+  "validation-v0.1.4.md": "validation-state-engine.md",
+  "validation-v0.1.5.md": "validation-multimodal-inputs.md",
+  "validation-v0.1.6.md": "validation-session-integration.md",
+  "validation-v0.1.7.md": "validation-shot-attribution.md",
+  "validation-v0.1.8.md": "validation-source-boundaries.md",
+  "validation-v0.1.9.md": "validation-builtin-courses.md",
+  "validation-result-v0.1.1.json": "validation-result-weather.json",
+  "validation-result-v0.1.2.json": "validation-result-shot-evidence.json"
+}

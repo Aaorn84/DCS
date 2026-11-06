@@ -7,7 +7,7 @@
 在技能目录：
 
 ```sh
-python3 -B scripts/shot_chain_cli.py --scenario assets/shot-chain-example-v0.1.0.json
+python3 -B scripts/shot_chain_cli.py --scenario assets/shot-chain-example.json
 python3 -B -m unittest discover -s tests -p 'test_*.py'
 ```
 

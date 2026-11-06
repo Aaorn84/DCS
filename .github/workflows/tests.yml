@@ -17,11 +17,11 @@ jobs:
         working-directory: skills/golf-caddie
         run: python -B -m unittest discover -s tests -p 'test_*.py'
       - name: API integration
-        working-directory: prototype-v0.1.6
+        working-directory: prototype
         run: python -B -m unittest discover -s tests -p 'test_*.py'
       - name: Client logic
-        working-directory: prototype-v0.1.6
+        working-directory: prototype
         run: node --experimental-transform-types --test tests/domain.test.mjs tests/voice.test.mjs
       - name: Phoenix sample
-        working-directory: 球场数据接入样本/东莞凤凰山-v0.1.1
+        working-directory: 球场数据接入样本/东莞凤凰山
         run: python -B -m unittest -q test_sample

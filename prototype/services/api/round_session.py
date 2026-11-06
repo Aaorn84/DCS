@@ -7,7 +7,7 @@ from datetime import datetime
 from round_state import reduce, require, StateError, fact_value, valid_ref, attribute, numeral
 from shot_evidence import haversine
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 N = r'(十八|十七|十六|十五|十四|十三|十二|十一|十|[零一二两三四五六七八九]|\d{1,2})'
 
 
@@ -35,6 +35,11 @@ def course_schema(data):
         require(isinstance(box, list) and len(box) == 4 and all(type(x) in (int, float) and math.isfinite(x) for x in box), 'bbox required')
         w, south, e, north = box
         require(-180 <= w < e <= 180 and -85 <= south < north <= 85, 'unsupported bbox')
+        for zone in ('tee_bbox', 'green_bbox'):
+            if zone in h:
+                b = h[zone]
+                require(isinstance(b, list) and len(b)==4 and all(type(x) in (int,float) and math.isfinite(x) for x in b)
+                        and -180<=b[0]<b[2]<=180 and -85<=b[1]<b[3]<=85, 'invalid GPS zone')
         objects = h.get('objects')
         require(isinstance(objects, list) and 0 < len(objects) <= 100, 'point objects required')
         ids = set()
@@ -124,6 +129,7 @@ def reduce_event(s, p, seq, now):
         data = course_schema(p.get('data'))
         eid = evidence('course', {'data': data})
         session['course_evidence'] = eid
+        session['gps_tracker'] = {}
         # Changing snapshot IDs also invalidates all computations that read the selected course.
         s['facts']['context.course_snapshot'] = dict(value=eid, status='confirmed', valid=True, version=seq, evidence_ids=[eid])
         from round_state import invalidate
@@ -147,19 +153,38 @@ def reduce_event(s, p, seq, now):
         matches = gps_matches(ce['data'], gps)
         # A geometric match is a candidate, not proof the previous hole was completed.
         previous_hole = fact_value(s, 'context.active_hole')
-        if fresh and len(matches) == 1:
-            if previous_hole != matches[0]:
-                s['evidence'][eid]['reliable_transition'] = True
-                step('gps_transition', dict(evidence_id=eid, hole=matches[0]))
+        from gps_transition import observe
+        transition = observe(session.setdefault('gps_tracker', {}), ce['data'], gps, observed, now, previous_hole)
+        # Initial geometric association is retained for compatibility, never a completion signal.
+        target = transition['confirmed_hole']
+        if previous_hole is None and fresh and len(matches)==1 and transition['accepted_position']:
+            target = matches[0]
+            from gps_transition import inside
+            initial = next(h for h in ce['data']['holes'] if h['number']==target)
+            if initial.get('green_bbox') and inside(initial['green_bbox'], gps):
+                session['gps_tracker']['green_seen'] = target
+        if target is not None and target != previous_hole:
+            s['evidence'][eid]['reliable_transition'] = True
+            step('gps_transition', dict(evidence_id=eid, hole=target))
+        if not transition['accepted_position']:
+            if transition['reason'] != 'duplicate_fix':
+                from round_state import invalidate
+                if 'context.device_position' in s['facts']:
+                    s['facts']['context.device_position']['valid'] = False
+                invalidate(s)
+            return say('', ignored=True, reason=transition['reason'], transition=transition)
         from round_state import invalidate
         s['facts']['context.device_position'] = dict(value=dict(gps, observed_at=p['observed_at']), status='confirmed', valid=True, version=seq, evidence_ids=[eid])
         invalidate(s)
-        extra = dict(candidate_holes=matches, usable_for_distance=fresh, ball_position_confirmed=False)
-        if (fresh and len(matches) == 1 and previous_hole is not None and previous_hole != matches[0]
+        extra = dict(candidate_holes=matches, usable_for_distance=fresh, ball_position_confirmed=False, transition=transition)
+        if (target is not None and previous_hole is not None and previous_hole != target
             and fact_value(s, 'preferences.proactive') is True
             and not fact_value(s, 'context.quiet', False) and not fact_value(s, 'context.preparing', False)
             and fact_value(s, f'holes.{previous_hole}.total') is None
             and not session['draft'] and not any(q['status'] == 'pending' for q in s['questions'].values())):
+            if previous_hole in session.setdefault('gps_prompted_holes', []):
+                return say('', **extra)
+            session['gps_prompted_holes'].append(previous_hole)
             qid = event + '-previous-score'
             step('question', dict(id=qid, target=f'holes.{previous_hole}', field='total', deps={}, proactive=True))
             session['question_id'] = qid

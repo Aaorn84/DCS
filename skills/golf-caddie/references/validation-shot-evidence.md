@@ -9,7 +9,7 @@
 - 不完整球位、杆号与击球间断的分层补采/降级规范。
 - 可调用的结构化击球证据门控，拒绝把位置移动/漏杆间断当成一次击球。
 
-新增8个数据门控测试先运行，因组件尚未实现而复现错误（含子测试共13条error）；实现后全量53个测试通过。数值、输入边界、校准及打包原有45项回归均保留。机器摘要见 [validation-result-v0.1.2.json](../assets/validation-result-v0.1.2.json)。
+新增8个数据门控测试先运行，因组件尚未实现而复现错误（含子测试共13条error）；实现后全量53个测试通过。数值、输入边界、校准及打包原有45项回归均保留。机器摘要见 [validation-result-shot-evidence.json](../assets/validation-result-shot-evidence.json)。
 
 ```sh
 python3 -B -m unittest discover -s tests -p 'test_*.py' -v
@@ -21,4 +21,4 @@ python3 -B -m unittest discover -s tests -p 'test_*.py' -v
 
 首次单题交流、用户是否理解熟悉期、主动追问是否自然等仍是技能要求，需要真实模型对话及耳机语音测试。GPS候选提取、APP存储、权限控制与事件去重尚未在本版接通；helper仅消费已经结构化的证据。天气系数仍是工程先验，真实场地精度未验证。
 
-版本包保留标准SKILL.md，外层名称golf-caddie-v0.1.2。逐文件哈希、ZIP校验、干净解压运行及同内容复现包按现有打包工具检查；哈希不是身份签名。
+版本包保留标准SKILL.md，外层名称golf-caddie。逐文件哈希、ZIP校验、干净解压运行及同内容复现包按现有打包工具检查；哈希不是身份签名。

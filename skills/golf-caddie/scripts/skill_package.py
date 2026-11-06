@@ -81,12 +81,12 @@ def verify_archive(archive, expected_sha256=None):
                     raise PackageError('hidden/cached archive member')
                 roots.add(path.parts[0])
             if len(roots) != 1:
-                raise PackageError('exactly one versioned root required')
+                raise PackageError('exactly one skill root required')
             root = roots.pop()
             manifest = json.loads(z.read(root+'/manifest.json'))
             if manifest.get('format') != 'codex-skill-bundle-v1':
                 raise PackageError('unsupported manifest format')
-            if root != f"{manifest['skill_name']}-v{manifest['skill_version']}":
+            if root not in (manifest['skill_name'], f"{manifest['skill_name']}-v{manifest['skill_version']}"):
                 raise PackageError('root and manifest version mismatch')
             declared = manifest['files']
             if not isinstance(declared, list):
@@ -114,7 +114,7 @@ def verify_archive(archive, expected_sha256=None):
 def build_package(source, output):
     files = payload(source)
     name, version = metadata(files['SKILL.md'].decode('utf-8'))
-    folder = f'{name}-v{version}'
+    folder = name
     manifest = {'format': 'codex-skill-bundle-v1', 'skill_name': name, 'skill_version': version,
                 'files': [{'path':path,'bytes':len(data),'sha256':digest(data)}
                           for path,data in sorted(files.items())]}
@@ -143,11 +143,11 @@ def build_package(source, output):
             existing = {p.relative_to(destination).as_posix():p.read_bytes()
                         for p in destination.rglob('*') if p.is_file() and not p.is_symlink()}
             if existing != files or any(p.is_symlink() for p in destination.rglob('*')):
-                raise PackageError('different existing release directory; increment version')
+                raise PackageError('different existing release directory; archive it or use an empty output directory')
         if archive.exists() and archive.read_bytes() != temporary_archive.read_bytes():
-            raise PackageError('different existing release archive; increment version')
+            raise PackageError('different existing release archive; archive it or use an empty output directory')
         if checksum_path.exists() and checksum_path.read_text() != checksum_data:
-            raise PackageError('different existing release checksum; increment version')
+            raise PackageError('different existing release checksum; archive it or use an empty output directory')
         if not destination.exists():
             shutil.move(str(root),str(destination))
         if not archive.exists():

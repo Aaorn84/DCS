@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'prototype-v0.1.6/services/api'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'prototype/services/api'))
 from server import Handler, Store, ThreadingHTTPServer
 class DemoHandler(Handler):
     def do_GET(self):

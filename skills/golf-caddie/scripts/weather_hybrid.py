@@ -139,7 +139,7 @@ def profile(raw):
     if coeff is None:
         out['coefficients'] = copy.deepcopy(COEFFICIENTS)
         out['coefficient_status'] = 'engineering_prior_not_field_calibrated'
-        out['coefficient_source'] = 'golf-caddie-v0.1.1 engineering intervals; not published constants'
+        out['coefficient_source'] = 'golf-caddie engineering intervals; not published constants'
     else:
         if not isinstance(coeff, dict):
             raise InputError('coefficients must be a named interval object')

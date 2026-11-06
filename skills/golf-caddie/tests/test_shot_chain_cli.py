@@ -10,7 +10,7 @@ ROOT=Path(__file__).resolve().parents[1]
 class CliTests(unittest.TestCase):
     def test_scenario_runs_and_audits_corrected_execution(self):
         p=subprocess.run([sys.executable,'-B',str(ROOT/'scripts/shot_chain_cli.py'),
-                          '--scenario',str(ROOT/'assets/shot-chain-example-v0.1.0.json')],capture_output=True,text=True,check=True)
+                          '--scenario',str(ROOT/'assets/shot-chain-example.json')],capture_output=True,text=True,check=True)
         rows=[json.loads(x) for x in p.stdout.splitlines()]
         self.assertTrue(all(r['ok'] for r in rows))
         self.assertEqual(rows[-1]['result']['state'],rows[-2]['result']['state'])
