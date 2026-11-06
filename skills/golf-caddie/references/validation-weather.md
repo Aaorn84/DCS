@@ -4,7 +4,7 @@
 
 ## 先失败，再修复
 
-先新增13个测试方法并在实现前运行：5个天气回归、8个打包需求测试，均暴露失败或错误。unittest记录3个failure条目及11个error条目，包含子测试，因此条目数可能超过方法数；机器记录见 [validation-result-v0.1.1.json](../assets/validation-result-v0.1.1.json)。打包测试最初因尚无工具而失败，天气测试则复现真实缺陷。
+先新增13个测试方法并在实现前运行：5个天气回归、8个打包需求测试，均暴露失败或错误。unittest记录3个failure条目及11个error条目，包含子测试，因此条目数可能超过方法数；机器记录见 [validation-result-weather.json](../assets/validation-result-weather.json)。打包测试最初因尚无工具而失败，天气测试则复现真实缺陷。
 
 | 原问题 | 本版修复 |
 |---|---|
@@ -26,11 +26,11 @@ python3 -B scripts/weather_engine.py assets/weather-hybrid-example.json --as-of 
 
 ## 打包与复核
 
-入口保留SKILL.md，外层目录和ZIP采用golf-caddie-v0.1.1命名。包中包括脚本、测试、资料、样例与manifest.json；不收集隐藏文件、Python缓存、无关用户记录或源目录外的软链接。
+入口保留SKILL.md，外层目录和ZIP采用golf-caddie命名。包中包括脚本、测试、资料、样例与manifest.json；不收集隐藏文件、Python缓存、无关用户记录或源目录外的软链接。
 
 ```sh
 python3 -B scripts/skill_package.py build --source . --output /private/tmp/caddie-release-output
-python3 -B scripts/skill_package.py verify /private/tmp/caddie-release-output/golf-caddie-v0.1.1.zip
+python3 -B scripts/skill_package.py verify /private/tmp/caddie-release-output/golf-caddie.zip
 ```
 
 校验工具不解压陌生文件；检查路径、唯一根目录、版本、声明文件、尺寸与哈希。逐文件清单验证完整性，外部SHA-256验证是否与所持校验值一致；这些不是身份签名或平台安装认证。相同文件/版本产生相同ZIP，已有同版本不同内容时拒绝覆盖，需先改版本号。

@@ -1,6 +1,6 @@
 {
   "files": {
-    "README.md": "0d25b08df2193378b98365acd3c6f8c05fefd6d9fc85cdd8595fbd5ac8af031e",
+    "README.md": "ca254324d21e5a58254b7ba3a09132f6b05d6597e13908488d4b5af620f301bb",
     "apps/mobile/App.tsx": "b60b0b654d90719ce295ad2a088f0c1ca1be68df787ff894738db06d44439e32",
     "apps/mobile/app.json": "99932979e45f1d52d64b39d77f55df4d026ffa9d8df2ff09f194f7c43720dfe2",
     "apps/mobile/assets/android-icon-background.png": "fb139c2dee362ebf2070e23b96da6fc0d43f8492de38b8af1fd7223e19b5861d",
@@ -20,8 +20,9 @@
     "apps/mobile/src/voiceFlow.ts": "1a7f0fc7a98193f638feae198bff2101a94a9c022d2a83cfcb3316d43fd02ed6",
     "apps/mobile/tsconfig.json": "712583ff9cdb4b4e4f9b000a4a56d68db8dc1921cbfbc36d490a3a9f2be3dd72",
     "docs/legacy-api.md": "0e05aa4ca5e47cabc6af5572fff9d5803dfb86c3592441199a40418c2792347d",
-    "docs/round-session-protocol.md": "4ea344d1b4da105b39d1d04874c181c2468d6465c1ba1c4e2d255d8f2d0a238e",
-    "services/api/round_session.py": "ae6a4d70d3e8e343b593ee44ced1e9a395a725c5c1e5498a54b70da494820cf0",
+    "docs/round-session-protocol.md": "f21b9fb4b8bcd41e04a38c766ba3721bfd8902a2219ee9c691468da9b1bf78d0",
+    "services/api/gps_transition.py": "903edd49b27cfca3799bce52aa69861baf29a1dc4a60e69768297a50116f8ce3",
+    "services/api/round_session.py": "6374a311a0519283bb49122dd14007492e1fda37e0fdc64420e74522aa4765bf",
     "services/api/round_state.py": "118c9ccb2c6074700c3cfa5ebb193eb57bf1b369d2961c10eb8ddb98bace442d",
     "services/api/server.py": "75e7a29a4441eb1e2cb5ae120b081f59bc8c4a29afbef41249e12f083fb900e5",
     "services/api/shot_evidence.py": "3e05ac7c5af29d24979b0aad8c25bda7077c5f3734d99e52cf1fa652511ee812",

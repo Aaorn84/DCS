@@ -10,7 +10,7 @@
 
 一个session_event的多个内部步骤共享一个聚合提交版本，事件与其证据、提案或确认同成同败，按提交日志可重放。新模块只实现限定中文流程，不代表通用语义理解、完整策略规划或真实数据服务已经完成。
 
-交付目录：`/Users/aaron/Workspace/电子球童/prototype-v0.1.6`。旧手机APP原型保留；新联调构建独立使用，避免旧voiceFlow和/sync重复写分。新状态账本是本流程事实源，旧records并未自动迁移或同步投影。
+交付目录：`/Users/aaron/Workspace/电子球童/prototype`。旧手机APP原型保留；新联调构建独立使用，避免旧voiceFlow和/sync重复写分。新状态账本是本流程事实源，旧records并未自动迁移或同步投影。
 
 ## 身份与接口
 

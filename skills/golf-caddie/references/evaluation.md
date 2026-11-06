@@ -298,9 +298,9 @@
 
 ## v0.1.1已执行的离线验证
 
-完整结果和未覆盖范围见 [验证报告](validation-v0.1.1.md)，机器可读记录见 [结果JSON](../assets/validation-result-v0.1.1.json)。运行脚本测试并不证明上面的对话场景已通过真实模型行为评测。
+完整结果和未覆盖范围见 [验证报告](validation-weather.md)，机器可读记录见 [结果JSON](../assets/validation-result-weather.json)。运行脚本测试并不证明上面的对话场景已通过真实模型行为评测。
 
 
 ## v0.1.2验证范围
 
-本轮结果与版本边界见 [v0.1.2验证报告](validation-v0.1.2.md)。算法和数据门控通过不代表首次语音对话已自动通过行为评测。
+本轮结果与版本边界见 [v0.1.2验证报告](validation-shot-evidence.md)。算法和数据门控通过不代表首次语音对话已自动通过行为评测。

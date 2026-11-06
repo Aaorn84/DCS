@@ -24,14 +24,14 @@ def source(parent):
 
 
 class SkillPackageTests(unittest.TestCase):
-    def test_versioned_root_and_standard_entry(self):
+    def test_stable_root_and_standard_entry(self):
         m=builder()
         with tempfile.TemporaryDirectory() as tmp:
             r=m.build_package(source(tmp),Path(tmp)/'dist')
-            self.assertEqual(Path(r['archive']).name,'sample-caddie-v0.1.1.zip')
+            self.assertEqual(Path(r['archive']).name,'sample-caddie.zip')
             self.assertTrue((Path(r['directory'])/'SKILL.md').is_file())
             with zipfile.ZipFile(r['archive']) as z:
-                self.assertIn('sample-caddie-v0.1.1/SKILL.md',z.namelist())
+                self.assertIn('sample-caddie/SKILL.md',z.namelist())
                 self.assertNotIn('SKILL-v0.1.1.md',z.namelist())
             self.assertTrue(m.verify_archive(r['archive'],r['sha256'])['valid'])
 
@@ -85,7 +85,7 @@ class SkillPackageTests(unittest.TestCase):
         m=builder()
         with tempfile.TemporaryDirectory() as tmp:
             r=m.build_package(source(tmp),Path(tmp)/'dist')
-            for name in ('../outside','sample-caddie-v0.1.1/extra.json'):
+            for name in ('../outside','sample-caddie/extra.json'):
                 bad=Path(tmp)/'invalid.zip'
                 with zipfile.ZipFile(r['archive']) as src,zipfile.ZipFile(bad,'w') as dst:
                     for i in src.infolist():dst.writestr(i.filename,src.read(i))
