@@ -315,32 +315,6 @@ class Handler(BaseHTTPRequestHandler):
             return {'records':self.server.store.snapshot(user)}
         if self.command=='POST' and path=='/sync':
             return self.server.store.apply(user,body)
-        if self.command=='POST' and path=='/journey':
-            from journey import view
-            engine=Engine(self.server.store.path,user)
-            rid='companion-journey'
-            try:
-                engine.create(rid)
-                action=body.get('action','snapshot')
-                if action=='snapshot':return {'journey':view(engine.state(rid))}
-                if action=='replay':return {'journey':view(engine.replay(rid))}
-                if action!='event':raise Problem(400,'未知旅程操作')
-                event=body.get('event')
-                if not isinstance(event,dict):raise Problem(400,'event必须为对象')
-                if any(k in event for k in ('owner','user_id','operations','command','payload','demo_course_snapshot')):raise Problem(400,'不允许的控制字段')
-                expected=body.get('expected_version')
-                if expected is not None:number(expected,0,2**31-1)
-                event=dict(event,protocol_version=31)
-                result=engine.command(rid,text(body.get('operation_id'),100),'journey_event',event,expected_version=expected)
-                state=engine.state(rid)
-                from speech_presentation import spoken_text
-                result=dict(result,text=spoken_text(result.get('text',''),reference_course=bool((state.get('journey',{}).get('round') or {}).get('reference_simulation'))))
-                result['speak_allowed']=bool(result.get('text')) and result.get('speak_allowed',True) and not state.get('journey',{}).get('quiet',False) and not any(state['facts'].get(k,{}).get('value') is True for k in ('context.quiet','context.preparing'))
-                if state['version']!=result['version']:result={**result,'text':'','speak_allowed':False,'stale_receipt':True}
-                return {'result':result,'journey':view(state)}
-            except Conflict as exc:raise Problem(409,str(exc),current=view(engine.state(rid)))
-            except (StateError,KeyError,TypeError,ValueError) as exc:raise Problem(400,str(exc))
-            finally:engine.close()
         if self.command=='POST' and path=='/round-state':
             action=body.get('action')
             round_id=text(body.get('round_id'),100)
