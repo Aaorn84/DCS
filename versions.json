@@ -1,11 +1,13 @@
 {
-  "baseline": "2026-11-06",
-  "skill": "0.1.11",
-  "state_engine": "0.5.0",
+  "baseline": "2026-11-08",
+  "skill": "0.1.34",
+  "state_engine": "0.6.0",
   "shot_chain": "0.1.0",
-  "integration_prototype": "0.1.7",
+  "integration_prototype": "0.3.1",
   "phoenix_sample": "0.1.1",
   "round_session": "0.2.0",
   "gps_transition": "0.1.0",
-  "artifact_naming": "stable filenames; versions in metadata and changelog"
+  "artifact_naming": "stable filenames; versions in metadata and changelog",
+  "journey": "0.19.0",
+  "journey_protocol": 31
 }

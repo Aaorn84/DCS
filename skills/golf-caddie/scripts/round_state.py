@@ -11,7 +11,7 @@ import sqlite3
 import time
 from datetime import datetime
 
-VERSION = '0.5.0'
+VERSION = '0.6.0'
 
 
 class StateError(ValueError):
@@ -177,7 +177,10 @@ def apply_patch(s, patch, seq):
 def reduce(s, kind, p, seq, now):
     """Pure deterministic reducer, shared by commit and replay."""
     result = {}
-    if kind == 'attribution_event':
+    if kind == 'journey_event':
+        from journey import reduce_journey
+        result = reduce_journey(s, p, seq, now)
+    elif kind == 'attribution_event':
         from shot_chain import reduce_event
         result = reduce_event(s, p, seq, now)
     elif kind == 'session_event':
