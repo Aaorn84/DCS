@@ -11,7 +11,7 @@ import sqlite3
 import time
 from datetime import datetime
 
-VERSION = '0.6.0'
+VERSION = '0.3.0'
 
 
 class StateError(ValueError):
@@ -73,10 +73,6 @@ def field(path, value, status):
 
 
 def valid_ref(s, ref):
-    if ref.startswith('chain:'):
-        from shot_chain import node_live
-        node = s.get('shot_chain', {}).get('nodes', {}).get(ref[6:])
-        return node if node_live(s, node) else None
     if ref.startswith('evidence:'):
         e = s['evidence'].get(ref[9:])
         return {'value': e, 'version': e['revision'] + 1, 'status': 'observed', 'valid': True} if e and e['active'] and e['phase'] == 'final' else None
@@ -109,14 +105,6 @@ def fact_value(s, path, default=None):
 
 
 def invalidate(s):
-    # Materialized node validity follows evidence without deleting historical nodes.
-    from_chain=s.get('shot_chain',{}).get('nodes',{})
-    if from_chain:
-        from shot_chain import node_live
-        for node in from_chain.values():
-            if node.get('valid',True) and not node_live(s,node):
-                node['valid']=False
-                node['learning_eligibility']['total_distance_candidate']=False
     # Repeated until transitive derived dependencies stop changing.
     changed = True
     while changed:
@@ -125,13 +113,6 @@ def invalidate(s):
             if d['valid'] and not refs_current(s, d['deps']):
                 d['valid'] = False
                 changed = True
-    for shot in s.get('shot_chain',{}).get('shots',{}).values():
-        ex=from_chain.get(shot['slots'].get('execution'))
-        if ex:
-            ex['learning_eligibility']['total_distance_candidate']=ex.get('valid',True) and any(
-                s['derived'].get(lid,{}).get('valid') and
-                ('chain:'+ex['node_id']) in s['derived'][lid]['deps']
-                for lid in shot['learning_candidates'])
     for q in s['questions'].values():
         if q['status'] == 'pending' and not refs_current(s, q['deps']):
             q['status'] = 'stale'
@@ -177,13 +158,7 @@ def apply_patch(s, patch, seq):
 def reduce(s, kind, p, seq, now):
     """Pure deterministic reducer, shared by commit and replay."""
     result = {}
-    if kind == 'journey_event':
-        from journey import reduce_journey
-        result = reduce_journey(s, p, seq, now)
-    elif kind == 'attribution_event':
-        from shot_chain import reduce_event
-        result = reduce_event(s, p, seq, now)
-    elif kind == 'session_event':
+    if kind == 'session_event':
         from round_session import reduce_event
         result = reduce_event(s, p, seq, now)
     elif kind == 'evidence':
@@ -196,9 +171,7 @@ def reduce(s, kind, p, seq, now):
             data = p.get('data')
             require(isinstance(data, dict) and isinstance(data.get('course_id'), str) and bool(data['course_id'])
                     and isinstance(data.get('map_version'), str) and bool(data['map_version'])
-                    and (data.get('crs') == 'WGS84' or (data.get('crs') is None
-                    and data.get('coordinate_status') == 'unverified' and data.get('spatial_use_allowed') is False
-                    and data.get('holes') == [])), 'versioned course snapshot or explicitly non-spatial catalogue required')
+                    and data.get('crs') == 'WGS84', 'versioned WGS84 course snapshot required')
         require(isinstance(p.get('observed_at'), str), 'observation time required')
         try:
             t = datetime.fromisoformat(p['observed_at'].replace('Z', '+00:00'))
@@ -257,7 +230,7 @@ def reduce(s, kind, p, seq, now):
         s['interpretations'][p['id']] = dict(copy.deepcopy(p), report=report, version=seq)
         result = report
     elif kind == 'question':
-        require(not any(q['status'] == 'pending' for q in s['questions'].values()) and not s.get('shot_chain',{}).get('pending_question'), 'only one pending question')
+        require(not any(q['status'] == 'pending' for q in s['questions'].values()), 'only one pending question')
         require(not fact_value(s, 'context.quiet', False) and not fact_value(s, 'context.preparing', False), 'question deferred')
         require(not p.get('proactive') or fact_value(s, 'preferences.proactive') is True, 'proactive not authorized')
         require(p['field'] in ('actual_club', 'ball_position', 'total', 'putts', 'penalties'), 'unsupported question field')
