@@ -52,6 +52,13 @@ def course_schema(data):
 
 
 def gps_matches(course, gps):
+    if course.get('reference_simulation') is True:
+        from lie_position import polygon_contains
+        matches=[h['number'] for h in course['holes'] if any(polygon_contains([ring],gps) for ring in h.get('simulation_boundary_rings',[]))]
+        chosen=gps.get('simulation_hole')
+        # Explicit demo scenario selection resolves overlapping source traces, never a production GPS inference.
+        if len(matches)>1 and type(chosen) is int and chosen in matches:return [chosen]
+        return matches
     matches = []
     # Conservative rectangular uncertainty envelope; no antimeridian geometry.
     dy = gps['accuracy_m'] / 111000
@@ -181,7 +188,8 @@ def reduce_event(s, p, seq, now):
             and fact_value(s, 'preferences.proactive') is True
             and not fact_value(s, 'context.quiet', False) and not fact_value(s, 'context.preparing', False)
             and fact_value(s, f'holes.{previous_hole}.total') is None
-            and not session['draft'] and not any(q['status'] == 'pending' for q in s['questions'].values())):
+            and not session['draft'] and not s.get('journey', {}).get('consultation')
+            and not any(q['status'] == 'pending' for q in s['questions'].values())):
             if previous_hole in session.setdefault('gps_prompted_holes', []):
                 return say('', **extra)
             session['gps_prompted_holes'].append(previous_hole)
