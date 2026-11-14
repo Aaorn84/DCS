@@ -117,6 +117,8 @@ def reduce_event(s, p, seq, now):
             return ask('putts', '这一洞几推？')
         ce = active_evidence(session['course_evidence'])
         par = next((h['par'] for h in ce['data']['holes'] if h['number'] == d['hole']), None) if ce else None
+        if p.get('_zero_penalties_v80') and d.get('penalties') is None:
+            d['penalties'] = (fact_value(s,f"holes.{d['hole']}.penalties") or 0) if p.get('_audit_v87') else 0
         if par is not None and d['total'] - par >= 2 and 'penalties' not in d:
             return ask('penalties', '这一洞有OB、下水或其他罚杆吗？告诉我罚杆数，不清楚也可以跳过。')
         if sum(d.get(k) or 0 for k in ('putts', 'penalties')) > d['total']:
@@ -125,10 +127,23 @@ def reduce_event(s, p, seq, now):
         ops = [dict(path=f"holes.{d['hole']}.{k}", value=d.get(k), status='unknown' if d.get(k) is None else 'confirmed') for k in ('total', 'putts', 'penalties')]
         patch_id = event + '-score'
         step('propose', dict(id=patch_id, base_version=base, evidence_ids=d['evidence_ids'], operations=ops))
+        if p.get('_dialogue_v69'):
+            s['patches'][patch_id]['score_target_versions'] = {
+                op['path']: s['facts'].get(op['path'], {}).get('version') for op in ops
+            }
+            s['patches'][patch_id]['score_course_evidence'] = session.get('course_evidence')
         session['pending_patch'] = patch_id
         d['awaiting'] = 'confirm'
         def describe(k):
             return '未知' if d.get(k) is None else str(d[k])
+        if d.get('inferred_putts'):
+            strokes = d['total']-d['putts']
+            wording = '一' if strokes == 1 else str(strokes)
+            return say(f"第{d['hole']}洞{d['total']}杆（已含罚杆），按{wording}杆上果岭推算{d['putts']}推。确认记录吗？",
+                       confirmation=dict(patch_id=patch_id, version=seq))
+        if p.get('_score_copy_v76') and d.get('putts') is not None and (d.get('penalties') is None or (p.get('_zero_penalties_v80') and d['penalties'] == 0)):
+            return say(f"第{d['hole']}洞{d['total']}杆，{d['putts']}推。确认记录吗？",
+                       confirmation=dict(patch_id=patch_id, version=seq))
         return say(f"第{d['hole']}洞{d['total']}杆（已含罚杆），{describe('putts')}推、罚杆{describe('penalties')}。确认记录吗？", confirmation=dict(patch_id=patch_id, version=seq))
 
     if p['type'] == 'course':
@@ -226,13 +241,22 @@ def reduce_event(s, p, seq, now):
         step('retract', dict(id=session['last_patch'], explicit=True))
         session['last_patch'] = None
         return say('已撤销上一条记分。', retracted=True)
+    if p.get('refresh_score_confirmation') is True and (session.get('draft') or {}).get('awaiting')=='confirm':
+        return finish_draft()
     if clean in ('确认', '确认记录', '确认保存'):
         pid = session['pending_patch']
         require(pid is not None and session['draft'] is not None, 'no pending score confirmation')
         patch = s['patches'][pid]
         if patch['base_version'] != base:
-            # Re-read and re-propose, require a new confirmation after any intervening state write.
-            return finish_draft()
+            versions = patch.get('score_target_versions')
+            can_confirm = (p.get('_dialogue_v69') and versions is not None
+                           and patch.get('score_course_evidence') == session.get('course_evidence')
+                           and all(s['facts'].get(path, {}).get('version') == version
+                                   for path, version in versions.items())
+                           and all(active_evidence(eid) for eid in patch['evidence_ids']))
+            if not can_confirm:
+                return finish_draft()
+            patch['base_version'] = base
         step('confirm', dict(id=pid, confirmation_version=patch['base_version'], explicit=True))
         session['last_patch'] = pid
         session['draft'] = session['pending_patch'] = None
@@ -275,6 +299,22 @@ def reduce_event(s, p, seq, now):
         d = dict(hole=hole, total=count(total), evidence_ids=[eid])
         if putts is not None:
             d['putts'] = count(putts)
+        elif p.get('_score_v72'):
+            question = s.get('questions', {}).get(session.get('question_id'), {})
+            if (question.get('status') == 'pending' and question.get('target') == f'holes.{hole}'
+                    and question.get('allow_unknown_putts')):
+                strokes = question.get('strokes_to_green') if p.get('_infer_multi_putts_v79') else None
+                known_penalties = fact_value(s,f'holes.{hole}.penalties')
+                if strokes and known_penalties in (None,0) and (penalties is None or count(penalties)==0) and d['total'] >= strokes:
+                    d['putts'] = d['total'] - strokes
+                    d['inferred_putts'] = True
+                elif (p.get('_infer_putts_v74') and question.get('one_to_green')
+                        and d['total'] == 3 and (penalties is None or count(penalties)==0)
+                        and fact_value(s,f'holes.{hole}.penalties') in (None,0)):
+                    d['putts'] = 2
+                    d['inferred_putts'] = True
+                else:
+                    d['putts'] = None
         if penalties is not None:
             d['penalties'] = count(penalties)
         close_question()

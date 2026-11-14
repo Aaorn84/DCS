@@ -7,7 +7,7 @@ from shot_evidence import haversine
 def requested(text):
  return bool(re.search(r'怎么打|如何打|风险|策略|怎么选杆|用什么杆|选什么杆|该用哪|注意什么|如何进攻|能攻吗|能上吗|怎么避|安全路线',text))
 
-def advise(s,c,now):
+def advise(s,c,now,*,pin=None):
  unit=s.get('journey',{}).get('profile',{}).get('units',{}).get('value','码');scale=1 if unit=='米' else 1/.9144
  pos=fresh_position(s,now);eid=fact_value(s,'context.course_snapshot');e=s['evidence'].get(eid,{})
  hole=next((h for h in e.get('data',{}).get('holes',[]) if h['number']==fact_value(s,'context.active_hole')),None) if e.get('active') and e.get('phase')=='final' else None
@@ -18,6 +18,11 @@ def advise(s,c,now):
  if len(greens)!=1:out['text']='果岭目标资料不完整，暂不选具体攻果岭杆号。';return out
  d=haversine(pos['value'],greens[0]);out['distance_m']=d
  text=f'到果岭中心约{round(d*scale/5)*5:g}{unit}。'
+ if pin:
+  from short_pin_distance import pin_distance_wording
+  d=(pin['min_m']+pin['max_m'])/2
+  out.update(distance_m=d,pin_distance_estimate=pin)
+  text=pin_distance_wording(pin,unit)+'。'
  confirmed=c.get('ball_position_report')=='user_confirmed'
  lie=c.get('lie_report')
  if not confirmed:text+='这是设备位置距离，尚未确认就是球位。'

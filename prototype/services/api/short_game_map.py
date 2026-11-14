@@ -12,8 +12,18 @@ def comparison(text):
 def question(text):return bool(re.search(r'[？?]|还是|怎么|如何|哪[支只种个边侧]|多少|多远|是否|有没有|吗|呢',text))
 def scope(s):return ((s.get('journey',{}).get('round') or {}).get('id'),fact_value(s,'context.course_snapshot'),fact_value(s,'context.active_hole'))
 
+def short_club_request(s,text,now):
+ if not re.search(r'(?:用|选|拿)(?:哪(?:一)?[只支]?|什么)杆',text):return False
+ pos=fresh_position(s,now)
+ if not pos:return False
+ eid=fact_value(s,'context.course_snapshot')
+ course=s.get('evidence',{}).get(eid,{}).get('data',{})
+ hole=next((h for h in course.get('holes',[]) if h['number']==fact_value(s,'context.active_hole')),None)
+ greens=[g for g in (hole or {}).get('objects',[]) if g.get('kind')=='green_center']
+ return len(greens)==1 and haversine(pos['value'],greens[0])<=50*.9144
+
 def handle(s,p,now):
- j=s['journey'];text=p.get('text','');pending=j.get('short_game_question');asked=comparison(text)
+ j=s['journey'];text=p.get('text','');pending=j.get('short_game_question');club_advice=short_club_request(s,text,now);asked=club_advice or comparison(text)
  if pending and not asked:
   if pending.get('kind')!='map_obstacle_check':
    from short_game import handle as old_question
@@ -30,8 +40,10 @@ def handle(s,p,now):
     return '位置或球洞已经变化，请重新问这杆的打法，我再按当前情况比较。'
    if accepted:
     j['last_short_game_advice']={'type':'system_advice','style':'chip_and_run','event_id':p['event_id'],'source':'user_confirmed_rollable_route','not_player_decision':True}
-    return '那我更倾向切滚，用你熟悉的短杆，选果岭上一块平坦落点，让球滚过去；别追贴边旗位。'
+    return ('那可以用P杆切滚，先落果岭前部再滚过去。' if pending.get('club_advice') else
+            '那我更倾向切滚，用你熟悉的短杆，选果岭上一块平坦落点，让球滚过去；别追贴边旗位。')
    j['last_short_game_advice']={'type':'system_advice','style':'familiar_pitch_or_recovery','event_id':p['event_id'],'source':'user_reported_blocked_route','not_player_decision':True}
+   if pending.get('club_advice'):return '那可以用熟悉的沙杆（SW）抛切，落到过障碍后较宽的果岭区域。没把握就选一条能绕开的路线。'
    return '那就别走地面切滚路线。优先用你熟悉的抛切越过障碍，落到较宽的果岭区域；没把握就先脱困，不硬打高难度高抛。'
   j.pop('short_game_question',None)
  if not asked:return None
@@ -46,6 +58,9 @@ def handle(s,p,now):
  if not pos:return '要比较高飞和切滚，先更新当前位置；刚才的打法讨论保留。'
  inferred=infer(s,now);lie=c.get('lie_report') if c.get('lie_evidence',{}).get('source')=='user_report' else inferred['label'] if inferred else c.get('lie_report')
  j['last_short_game_advice']={'type':'system_advice','event_id':p['event_id'],'not_player_decision':True,'position_version':pos['version']}
+ if club_advice and lie=='果岭':return '球已经在果岭上，用推杆。先把速度控制好，瞄能给下一推留下舒服距离的线路。'
+ if club_advice and lie=='沙坑':return '可以用熟悉的沙杆（SW）先出沙，瞄果岭较宽的位置。沙沿高的话，优先确保出沙。'
+ if club_advice and lie=='长草':return '可以用熟悉的沙杆（SW）抛切，先落到果岭较宽处。长草容易影响触球，给落点留点余量。'
  if lie=='沙坑':return '如果球在沙坑，先以脱困为主，不用切滚穿沙沿。选你熟悉的沙坑打法，把球送到较宽的果岭区域，不追旗。'
  if lie=='长草':return '长草会影响触球和滚动，我更倾向熟悉的抛切，先把球送上果岭再滚；别默认用高难度高抛。'
  eid=fact_value(s,'context.course_snapshot');course=s.get('evidence',{}).get(eid,{}).get('data',{})
@@ -57,13 +72,16 @@ def handle(s,p,now):
  route=assess(s,now);j['last_short_game_advice']['route_assessment']=route
  if route['verdict']=='clear':
   j.pop('short_game_question',None);j['last_short_game_advice'].update(style='chip_and_run',source='mapped_route')
+  if club_advice:return '地图上这条线路通畅，可以用P杆切滚，先落在果岭前部再滚。滚动空间充足、你也熟悉9号铁切滚的话，也可以用9号铁。'
   return '按地图这条球道接果岭的线路，我倾向切滚，先落在果岭前部再滚动，不追旗。'
  if route['verdict']=='blocked':
   j.pop('short_game_question',None);j['last_short_game_advice'].update(style='familiar_pitch_or_recovery',source='mapped_obstacle')
   names={'bunker':'沙坑','water':'水体','rough':'长草'}
   labels='、'.join(dict.fromkeys(names[v['kind']] for v in route['obstacles']))
+  if club_advice:return '这条线经过或紧邻'+labels+'。可以用熟悉的沙杆（SW）抛切，落到障碍后较宽的位置；没把握就换条能绕开的线。'
   return '地图显示这条路线经过或紧邻'+labels+'，不建议直接切滚。优先用熟悉的抛切，选过障碍后较宽的落点；没把握就先脱困。'
  j['short_game_question']={'kind':'map_obstacle_check','scope':list(scope(s)),'at':now,'position':dict(pos['value']),'event_id':p['event_id']}
+ if club_advice:j['short_game_question']['club_advice']=True
  return '地图还不能确认这段地面线路。球到果岭之间有沙坑、长草，或明显起伏挡着吗？'
 
 

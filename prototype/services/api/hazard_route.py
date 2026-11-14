@@ -79,3 +79,78 @@ def answer(s,request,now):
  text=f'沿当前位置到果岭参考点的直线，到这个{label}远沿约{distance:g}{unit}；飞越还要留余量。'
  if chosen['far_m']>length+pos['value']['accuracy_m']:text+='这个障碍沿线延伸到果岭参考点之后，不能把参考点距离当成过障碍距离。'
  return text
+
+
+def landing_line(state, now, target=None, *, corridor=False):
+ """Intersect green and mapped hazards along one explicit aiming ray."""
+ pos=fresh_position(state,now)
+ eid=fact_value(state,'context.course_snapshot')
+ evidence=state.get('evidence',{}).get(eid,{})
+ if not pos or not evidence.get('active') or evidence.get('phase')!='final':return None
+ course=evidence['data']
+ hole=next((h for h in course.get('holes',[]) if h['number']==fact_value(state,'context.active_hole')),None)
+ if not hole:return None
+ centers=[v for v in hole.get('objects',[]) if v['kind']=='green_center']
+ if len(centers)!=1:return None
+ target=target or centers[0]
+ start=pos['value']
+ scale=111000*math.cos(math.radians(start['latitude']))
+ def xy(lon,lat):
+  return (lon-start['longitude'])*scale,(lat-start['latitude'])*111000
+ dx,dy=xy(target['longitude'],target['latitude'])
+ length=math.hypot(dx,dy)
+ if length<5:return None
+ fx,fy=dx/length,dy/length
+ polygons={kind:[] for kind in ('green','bunker','water')}
+ for zone in hole.get('surface_zones',[]):
+  shape=zone.get('geometry',{})
+  if zone.get('surface') in polygons and zone.get('verified') is True and zone.get('source') and shape.get('type')=='Polygon':
+   polygons[zone['surface']].append(shape['coordinates'])
+ if course.get('reference_simulation') is True:
+  kinds={'GreenTrace':'green','BunkerTrace':'bunker','WaterTrace':'water'}
+  for path in hole.get('display_paths',[]):
+   kind=kinds.get(path['kind'])
+   if not kind or len(path['points'])<3:continue
+   ring=[[point['longitude'],point['latitude']] for point in path['points']]
+   polygons[kind].append([ring if ring[0]==ring[-1] else ring+[ring[0]]])
+ def intervals(rings):
+  crossings={0.0}
+  for ring in rings:
+   pts=[xy(*v) for v in ring]
+   projected=[(x*fy-y*fx,x*fx+y*fy) for x,y in pts]
+   for (x,a),(u,b) in zip(projected,projected[1:]):
+    if abs(u-x)<1e-8:continue
+    fraction=-x/(u-x)
+    distance=a+fraction*(b-a)
+    if 0<=fraction<=1 and distance>0:crossings.add(distance)
+  cuts=sorted(crossings)
+  for a,b in zip(cuts,cuts[1:]):
+   mid=(a+b)/2
+   point={'longitude':start['longitude']+fx*mid/scale,
+          'latitude':start['latitude']+fy*mid/111000,'accuracy_m':0}
+   if polygon_contains(rings,point):yield a,b
+ green=next(((a,b) for rings in polygons['green'] for a,b in intervals(rings) if a<=length<=b),None)
+ if not green:return None
+ hazards={kind:max((b for rings in polygons[kind] for a,b in intervals(rings)
+                    if a<green[1]),default=None) for kind in ('bunker','water')}
+ if corridor:
+  miss=state.get('journey',{}).get('profile',{}).get('usual_miss',{}).get('value')
+  accuracy=start['accuracy_m']
+  left=accuracy+(3 if miss=='偏左' else 0)
+  right=accuracy+(3 if miss=='偏右' else 0)
+  for kind in hazards:
+   for rings in polygons[kind]:
+    for ring in rings:
+     pts=[xy(*point) for point in ring]
+     projected=[(x*fy-y*fx,x*fx+y*fy) for x,y in pts]
+     for (x,a),(u,b) in zip(projected,projected[1:]):
+      if max(x,u)<-left or min(x,u)>right or max(a,b)<=0 or min(a,b)>=green[1]:continue
+      if abs(u-x)>1e-8:
+       limits=sorted(((-left-x)/(u-x),(right-x)/(u-x)))
+       far=max(a+max(0,limits[0])*(b-a),a+min(1,limits[1])*(b-a))
+      else:
+       far=max(a,b)
+      hazards[kind]=max(hazards[kind] or 0,far)
+ return {'front_m':green[0],'back_m':green[1],'target_m':length,'hazards':hazards,
+         'accuracy_m':start['accuracy_m'],
+         'hazard_coverage_complete':hole.get('hazard_coverage_complete') is True}

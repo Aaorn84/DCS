@@ -292,7 +292,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.command=='GET' and path=='/health':
             return {'ok':True,'stage':'development','mapReady':False,
                     'provider':'deepseek' if os.environ.get('DEEPSEEK_API_KEY') else 'demo',
-                    'roundStateReady':True,'courseGeometry':'point-bbox-prototype'}
+                    'journeyProtocol':88,'roundStateReady':True,'courseGeometry':'point-bbox-prototype'}
         body={}
         if self.command=='POST':
             try:
@@ -315,8 +315,31 @@ class Handler(BaseHTTPRequestHandler):
             return {'records':self.server.store.snapshot(user)}
         if self.command=='POST' and path=='/sync':
             return self.server.store.apply(user,body)
+        if self.command=='POST' and path=='/international':
+            from international import snapshot
+            engine=Engine(self.server.store.path,user)
+            rid='international-journey'
+            try:
+                engine.create(rid)
+                action=body.get('action','snapshot')
+                if action in ('snapshot','replay'):
+                    return snapshot(engine.replay(rid) if action=='replay' else engine.state(rid))
+                if action!='event':raise Problem(400,'unsupported international action')
+                event=body.get('event')
+                if not isinstance(event,dict):raise Problem(400,'event must be an object')
+                expected=body.get('expected_version')
+                if expected is not None:number(expected,0,2**31-1)
+                result=engine.command(rid,text(body.get('operation_id'),100),'international_event',dict(event,protocol_version=4),expected_version=expected,server_protocol=True)
+                state=engine.state(rid)
+                if result['version']!=state['version']:
+                    result={**result,'text':'','speak_allowed':False,'stale_receipt':True}
+                return {**snapshot(state),'result':result}
+            except Conflict as exc:raise Problem(409,str(exc),current=snapshot(engine.state(rid)))
+            except (StateError,KeyError,TypeError,ValueError) as exc:raise Problem(400,str(exc))
+            finally:engine.close()
         if self.command=='POST' and path=='/journey':
-            from journey import view
+            from journey import view as domain_view
+            def view(state):return dict(domain_view(state),runtime_protocol=88)
             engine=Engine(self.server.store.path,user)
             rid='companion-journey'
             try:
@@ -327,14 +350,37 @@ class Handler(BaseHTTPRequestHandler):
                 if action!='event':raise Problem(400,'未知旅程操作')
                 event=body.get('event')
                 if not isinstance(event,dict):raise Problem(400,'event必须为对象')
-                if any(k in event for k in ('owner','user_id','operations','command','payload','demo_course_snapshot')):raise Problem(400,'不允许的控制字段')
+                if any(k in event for k in ('owner','user_id','operations','command','payload','demo_course_snapshot','_pin_reply_v52','_pin_reply_v67','_wedge_bag_v68','_dialogue_v69','_dialogue_v70','_dialogue_v71','_score_v72','_infer_putts_v74','_score_copy_v76','_wedge_continue_v77','_infer_multi_putts_v79','_zero_penalties_v80','_pitching_choice_v81','_sim_putts_v82','_practical_rough_v83','_followups_v84','_landing_depth_v85','_aim_lines_v86','_audit_v87','_correction_v88')):raise Problem(400,'不允许的控制字段')
                 expected=body.get('expected_version')
                 if expected is not None:number(expected,0,2**31-1)
-                event=dict(event,protocol_version=31)
-                result=engine.command(rid,text(body.get('operation_id'),100),'journey_event',event,expected_version=expected)
+                event=dict(event,protocol_version=88)
+                result=engine.command(rid,text(body.get('operation_id'),100),'journey_event',event,expected_version=expected,server_protocol=True)
                 state=engine.state(rid)
                 from speech_presentation import spoken_text
-                result=dict(result,text=spoken_text(result.get('text',''),reference_course=bool((state.get('journey',{}).get('round') or {}).get('reference_simulation'))))
+                from tee_hazard_facts import route_facts
+                import time
+                details=route_facts(state,result['tee_routes'],time.time()) if result.get('tee_routes') else None
+                result=dict(result,text=spoken_text(result.get('text',''),reference_course=bool((state.get('journey',{}).get('round') or {}).get('reference_simulation')),route_details=details,active_round=state.get('journey',{}).get('stage')=='active'))
+                if result.get('tee_routes') and result.get('text'):
+                    from tee_performance import comparison
+
+                    note=comparison(state['journey'],result['tee_routes'],details)
+                    if note:result['text']=note+'\n'+result['text']
+                if result.get('tee_preference_note') and result.get('text'):
+                    result['text']=result['tee_preference_note']+result['text']
+                from iron_estimates import present_iron_option
+                rendered,iron_option=present_iron_option(state,result.get('text',''),time.time(),pin=result.get('pin_distance_estimate'),strategy=bool(result.get('pin_location')),verified_lines=True)
+                result['text']=rendered
+                if iron_option:result['estimated_iron_option']=iron_option
+                if result.get('text') and (result.get('pin_location') or '用熟悉的短杆过渡' in result.get('choices', [])):
+                    from lie_performance import approach_context
+
+                    note=approach_context(state['journey'],result['text'])
+                    if note:result['text']+=note
+                from short_pin_distance import present_short_pin
+                rendered,pin_estimate=present_short_pin(state,result.get('text',''),time.time())
+                result['text']=rendered
+                if pin_estimate:result['pin_distance_estimate']=pin_estimate
                 result['speak_allowed']=bool(result.get('text')) and result.get('speak_allowed',True) and not state.get('journey',{}).get('quiet',False) and not any(state['facts'].get(k,{}).get('value') is True for k in ('context.quiet','context.preparing'))
                 if state['version']!=result['version']:result={**result,'text':'','speak_allowed':False,'stale_receipt':True}
                 return {'result':result,'journey':view(state)}

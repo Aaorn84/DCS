@@ -20,6 +20,19 @@ class MapFirstTests(unittest.TestCase):
   r=handle(s,dict(text='没有障碍',event_id='a'),time.time());self.assertIn('倾向切滚',r)
  def test_unknown_obstacle_answer_and_wrong_yes_semantics(self):
   s=self.scene();s['evidence']['map']['data']['holes'][0]['surface_zones']=[];handle(s,dict(text='打高飞还是切滚？',event_id='q'),time.time());r=handle(s,dict(text='有',event_id='a'),time.time());self.assertIn('别走地面',r)
+ def test_direct_club_request_uses_map_before_recommending(self):
+  now=time.time()
+  s=self.scene();self.assertIn('P杆切滚',handle(s,dict(text='用哪只杆？',event_id='q'),now))
+  h=s['evidence']['map']['data']['holes'][0]
+  h['surface_zones'].append(self.zone('b','bunker',-.00005,-.00019,.00005,-.00018))
+  self.assertIn('沙杆（SW）抛切',handle(s,dict(text='用哪只杆？',event_id='q2'),now))
+  h['surface_zones']=[]
+  self.assertEqual(handle(s,dict(text='用哪只杆？',event_id='q3'),now).count('？'),1)
+  self.assertIn('P杆切滚',handle(s,dict(text='没有障碍',event_id='a'),now))
+  self.assertNotIn('player_decisions',s['journey'])
+  s['facts']['context.device_position']['value']['latitude']=-.0013
+  self.assertIsNone(handle(s,dict(text='用哪只杆？',event_id='q4'),now))
+
  def test_side_hazard_not_on_route_is_not_a_blocker(self):
   s=self.scene();s['evidence']['map']['data']['holes'][0]['surface_zones'].append(self.zone('side','bunker',.00012,-.0002,.00015,-.00015));self.assertEqual(assess(s,time.time())['verdict'],'clear')
  def test_thin_hazard_and_accuracy_overlap_are_detected(self):

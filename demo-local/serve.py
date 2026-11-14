@@ -4,8 +4,8 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'prototype/services/ap
 from server import Handler, Store, ThreadingHTTPServer
 class DemoHandler(Handler):
     def do_GET(self):
-        if self.path in ('/','/index.html'):
-            body=Path(__file__).with_name('index.html').read_bytes()
+        if self.path in ('/','/index.html','/international.html'):
+            body=Path(__file__).with_name('international.html' if self.path=='/international.html' else 'index.html').read_bytes()
             self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
         else:self.handle_request()
 import argparse, tempfile

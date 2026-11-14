@@ -3,7 +3,7 @@ No GPS swing inference, carry calibration or score increments.
 """
 import copy,re
 from datetime import datetime
-from round_state import fact_value
+from round_state import fact_value,canonical
 from lie_position import fresh_position
 from shot_evidence import haversine
 from conversation_preferences import agreement
@@ -32,6 +32,34 @@ def observe(s,now,query=False):
  simulated=data.get('reference_simulation') is True and v.get('simulation_hole')==hole
  if simulated or query:add(s,v,pos.get('evidence_ids',[]),'simulated_location_candidate' if simulated else 'query_location_candidate')
 
+def correct_simulated_position(s,now):
+ pos=fresh_position(s,now)
+ key=scope(s)
+ course=s.get('evidence',{}).get(key[1],{}).get('data',{})
+ if not pos or course.get('reference_simulation') is not True or pos['value'].get('simulation_source')!='map_click':return
+ rows=s['journey'].get('shot_location_candidates',[])
+ indices=[i for i,row in enumerate(rows) if (row['round_id'],row['course'],row['hole'])==key]
+ if len(indices)<2:return
+ index=indices[-1]
+ old=rows[index]
+ previous=rows[indices[-2]]
+ old_key=canonical([*key,previous['id'],old['id']])
+ new_id=pos['evidence_ids'][0]
+ rows[index]=dict(old,id=new_id,point=copy.deepcopy(pos['value']),evidence_ids=list(pos['evidence_ids']))
+ j=s['journey']
+ reports=j.get('previous_club_reports',{})
+ if old_key in reports:reports[canonical([*key,previous['id'],new_id])]=reports.pop(old_key)
+ for row in j.get('confirmed_shot_distances',[]):
+  if row['scope']==list(key) and old['id'] in row['pair_ids']:row['valid']=False
+ for row in j.get('rejected_shot_links',[]):
+  if row['scope']==list(key) and row['pair_ids']==[previous['id'],old['id']]:
+   row['pair_ids']=[previous['id'],new_id]
+ plan=j.get('tee_club_fallback') or {}
+ if plan.get('pair_key')==old_key:plan['pair_key']=canonical([*key,previous['id'],new_id])
+ j.pop('pending_shot_link',None)
+ j.pop('pending_previous_club',None)
+
+
 def bootstrap(s):
  """Recover only GPS fixes demonstrably accepted by earlier journey receipts."""
  j=s['journey'];round_id,course,hole=scope(s)
@@ -59,8 +87,16 @@ def live(s,row):
 def unit(s,text):return '米' if '米' in text else '码' if '码' in text else s['journey'].get('profile',{}).get('units',{}).get('value','码')
 def amount(meters,u):return str(round((meters/(1 if u=='米' else .9144))/5)*5)+u
 
+def current_score_record(s,record):
+ if not record.get('inferred_from_score'):return True
+ patch=s.get('patches',{}).get(record.get('score_patch_id'),{})
+ return patch.get('status')=='committed' and bool(patch.get('operations')) and all(
+  s.get('facts',{}).get(op['path'],{}).get('version')==patch.get('committed_version')
+  for op in patch['operations'])
+
+
 def valid_record(s,record):
- return record.get('valid') is True and tuple(record['scope'])==scope(s) and all(live(s,row) for row in record['endpoints'])
+ return (not record.get('inferred_from_score') or s.get('patches',{}).get(record.get('score_patch_id'),{}).get('status')=='committed') and record.get('valid') is True and tuple(record['scope'])==scope(s) and all(live(s,row) for row in record['endpoints'])
 
 def handle(s,p,now):
  text=p.get('text','');j=s['journey']
@@ -91,7 +127,7 @@ def handle(s,p,now):
  bootstrap(s);observe(s,now,query=True);points=pair(s);u=unit(s,text)
  if len(points)!=2 or not all(live(s,r) for r in points):return distance_answer(s,text)
  ids=[r['id'] for r in points]
- records=[r for r in j.get('confirmed_shot_distances',[]) if valid_record(s,r) and r['pair_ids']==ids]
+ records=[r for r in j.get('confirmed_shot_distances',[]) if valid_record(s,r) and r['pair_ids']==ids and (not p.get('_audit_v87') or current_score_record(s,r))]
  if records:return '上一杆水平总距离约'+amount(records[-1]['total_horizontal_m'],u)+'，包含滚动，不是Carry。'
  meters=haversine(points[0]['point'],points[1]['point'])
  if any(r['scope']==list(scope(s)) and r['pair_ids']==ids for r in j.get('rejected_shot_links',[])):

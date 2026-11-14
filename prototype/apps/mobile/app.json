@@ -31,6 +31,15 @@
           "microphonePermission": "允许电子球童听取你主动发起的语音交流。",
           "speechRecognitionPermission": "将语音转成文字，用于专业建议、陪伴和球洞结束后的确认记录。"
         }
+      ],
+      [
+        "@siteed/audio-studio",
+        {
+          "enableBackgroundAudio": false,
+          "enableNotifications": false,
+          "enablePhoneStateHandling": false,
+          "enableDeviceDetection": false
+        }
       ]
     ]
   }

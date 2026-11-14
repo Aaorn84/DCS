@@ -4,7 +4,10 @@ from club_selection import selection
 from round_state import fact_value
 
 def previous_distance(text):
- return bool(re.search(r'上一杆|上杆|刚才那(?:一)?杆|刚刚那(?:一)?杆',text) and re.search(r'多少|多远|距离|几码|几米',text))
+ if re.search(r'上一杆|上杆|刚才那(?:一)?杆|刚刚那(?:一)?杆',text):
+  return bool(re.search(r'多少|多远|距离|几码|几米',text))
+ clean=re.sub(r'[\s，,。！!？?]','',text)
+ return bool(re.fullmatch(r'(?:刚刚|刚才|上一个)(?:打|开|开球)(?:了)?(?:多少(?:码|米)?|多远|几码|几米)(?:呢|啊)?',clean))
 
 def distance_answer(s,text):
  from shot_chain import node_live
