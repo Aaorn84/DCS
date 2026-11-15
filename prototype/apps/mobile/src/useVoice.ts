@@ -1,11 +1,14 @@
 import {useEffect, useRef, useState} from 'react';
 import {AppState, Platform} from 'react-native';
 import * as Speech from 'expo-speech';
+import {speechHints,voiceLocale,type VoiceLocale} from './locale';
 import {ExpoSpeechRecognitionModule as Recognition} from 'expo-speech-recognition';
 
 export type SpokenReply={text:string;pause?:boolean};
 /** Foreground voice loop. Explicitly pauses on background; no false lock-screen claim. */
-export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>) {
+export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>, locale:VoiceLocale='zh-CN') {
+  voiceLocale(locale);
+  const language=useRef(locale);
   const [status,setStatus]=useState('尚未开启语音');
   const [enabled,setEnabled]=useState(false);
   const [transcript,setTranscript]=useState('');
@@ -14,13 +17,13 @@ export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>) {
   const generation=useRef(0);
   function stop() {
     active.current=false;generation.current++;setEnabled(false);
-    Recognition.abort();void Speech.stop();setStatus('语音已暂停');
+    Recognition.abort();void Speech.stop().catch(()=>{});setStatus('语音已暂停');
   }
   function listen() {
     if(!active.current||AppState.currentState!=='active')return;
     received.current=false;setStatus('正在听你说');
-    Recognition.start({lang:'zh-CN',interimResults:true,continuous:false,
-      contextualStrings:['七号铁','这洞打完了','六杆','两推','一罚','确认','先不记'],
+    Recognition.start({lang:language.current,interimResults:true,continuous:false,
+      contextualStrings:speechHints[language.current],
       recordingOptions:{persist:false}});
   }
   async function speak(text:string, resume=true) {
@@ -28,7 +31,7 @@ export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>) {
     received.current=true;Recognition.abort();await Speech.stop();
     if(!active.current||current!==generation.current)return;
     setStatus('球伴正在回应');
-    await new Promise<void>((resolve,reject)=>Speech.speak(text,{language:'zh-CN',rate:0.95,
+    await new Promise<void>((resolve,reject)=>Speech.speak(text,{language:language.current,rate:0.95,
       onDone:()=>resolve(),onStopped:()=>resolve(),onError:()=>reject(new Error('语音播报不可用'))}));
     if(active.current&&current===generation.current) {
       if(resume)listen();else stop();
@@ -43,6 +46,7 @@ export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>) {
       active.current=true;generation.current++;setEnabled(true);listen();
     } catch(e) {active.current=false;setEnabled(false);setStatus(e instanceof Error?e.message:'语音暂不可用');}
   }
+  useEffect(()=>{if(language.current!==locale){stop();language.current=locale;}},[locale]);
   useEffect(()=>{
     const result=Recognition.addListener('result',(event)=>{
       const text=event.results[0]?.transcript??'';setTranscript(text);

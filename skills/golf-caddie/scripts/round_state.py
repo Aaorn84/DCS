@@ -177,7 +177,10 @@ def apply_patch(s, patch, seq):
 def reduce(s, kind, p, seq, now):
     """Pure deterministic reducer, shared by commit and replay."""
     result = {}
-    if kind == 'journey_event':
+    if kind == 'international_event':
+        from international import reduce_event
+        result = reduce_event(s, p, seq, now)
+    elif kind == 'journey_event':
         from journey import reduce_journey
         result = reduce_journey(s, p, seq, now)
     elif kind == 'attribution_event':
@@ -387,7 +390,7 @@ class Engine:
         require(row is not None, 'round not found for authenticated owner')
         return json.loads(row[0])
 
-    def command(self, round_id, command_id, kind, payload, expected_version=None, now=None):
+    def command(self, round_id, command_id, kind, payload, expected_version=None, now=None, *, server_protocol=False):
         require(isinstance(command_id, str) and bool(command_id), 'command id required')
         payload = json.loads(canonical(payload))
         digest = hashlib.sha256(canonical([kind, payload, expected_version]).encode()).hexdigest()
@@ -396,9 +399,15 @@ class Engine:
         self.db.execute('BEGIN IMMEDIATE')
         try:
             s = self.state(round_id)
-            prev = self.db.execute('SELECT digest,result FROM commands WHERE owner=? AND round_id=? AND command_id=?', (self.owner, round_id, command_id)).fetchone()
+            prev = self.db.execute('SELECT digest,result,kind,payload FROM commands WHERE owner=? AND round_id=? AND command_id=?', (self.owner, round_id, command_id)).fetchone()
             if prev:
-                if prev[0] != digest:
+                retry_digest = digest
+                if server_protocol and prev[2] == kind:
+                    original = json.loads(prev[3])
+                    if 'protocol_version' in original:
+                        retry_payload = dict(payload, protocol_version=original['protocol_version'])
+                        retry_digest = hashlib.sha256(canonical([kind, retry_payload, expected_version]).encode()).hexdigest()
+                if prev[0] != retry_digest:
                     raise Conflict('idempotency key reused with different payload')
                 self.db.execute('COMMIT')
                 return json.loads(prev[1])
