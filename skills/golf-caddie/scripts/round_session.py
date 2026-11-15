@@ -139,6 +139,9 @@ def reduce_event(s, p, seq, now):
         if d.get('inferred_putts'):
             strokes = d['total']-d['putts']
             wording = '一' if strokes == 1 else str(strokes)
+            if p.get('_score_wording_v92'):
+                return say(f"第{d['hole']}洞{d['total']}杆（已含罚杆），{strokes}杆上果岭，{d['putts']}推。确认记录吗？",
+                           confirmation=dict(patch_id=patch_id, version=seq))
             return say(f"第{d['hole']}洞{d['total']}杆（已含罚杆），按{wording}杆上果岭推算{d['putts']}推。确认记录吗？",
                        confirmation=dict(patch_id=patch_id, version=seq))
         if p.get('_score_copy_v76') and d.get('putts') is not None and (d.get('penalties') is None or (p.get('_zero_penalties_v80') and d['penalties'] == 0)):

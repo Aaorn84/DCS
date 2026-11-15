@@ -24,12 +24,20 @@ def add(s,point,evidence_ids,origin):
   if haversine(last['point'],point)<=tolerance:return
  row['id']=evidence_ids[0];points.append(row)
 
-def observe(s,now,query=False):
+def simulated_tee(s,key,point):
+ course=s.get('evidence',{}).get(key[1],{}).get('data',{})
+ if course.get('reference_simulation') is not True:return False
+ hole=next((h for h in course.get('holes',[]) if h['number']==key[2]),{})
+ tee=hole.get('simulation_positions',{}).get('tee')
+ return bool(tee and haversine(tee,point)<=5)
+
+def observe(s,now,query=False,*,preserve_played_shots=False):
  pos=fresh_position(s,now)
  if not pos:return
  v=pos['value'];_,course,hole=scope(s)
  data=s.get('evidence',{}).get(course,{}).get('data',{})
  simulated=data.get('reference_simulation') is True and v.get('simulation_hole')==hole
+ if preserve_played_shots and simulated_tee(s,scope(s),v) and pair(s):return
  if simulated or query:add(s,v,pos.get('evidence_ids',[]),'simulated_location_candidate' if simulated else 'query_location_candidate')
 
 def correct_simulated_position(s,now):
@@ -124,7 +132,7 @@ def handle(s,p,now):
  if not previous_distance(text):
   if pending:j.setdefault('deferred_shot_links',[]).append(j.pop('pending_shot_link'))
   return None
- bootstrap(s);observe(s,now,query=True);points=pair(s);u=unit(s,text)
+ bootstrap(s);observe(s,now,query=True,preserve_played_shots=p.get('_simulation_shot_v93',False));points=pair(s);u=unit(s,text)
  if len(points)!=2 or not all(live(s,r) for r in points):return distance_answer(s,text)
  ids=[r['id'] for r in points]
  records=[r for r in j.get('confirmed_shot_distances',[]) if valid_record(s,r) and r['pair_ids']==ids and (not p.get('_audit_v87') or current_score_record(s,r))]
@@ -136,3 +144,37 @@ def handle(s,p,now):
   return '这两个位置相距约'+amount(meters,u)+'。先完成当前记分，再确认是否是一杆距离。'
  j['pending_shot_link']=dict(scope=list(scope(s)),pair_ids=ids,meters=meters,unit=u,asked_at=now,query_event_id=p['event_id'])
  return '这两个球位相距约'+amount(meters,u)+'。中间只打了一杆，没有抛球或重打，对吗？'
+
+def record_simulated_landing(s,p,now,*,preserve_played_shots=False):
+ """Save a manually submitted simulation landing as horizontal distance."""
+ data=p.get('data',{})
+ if data.get('simulation_source')!='map_click' or data.get('simulation_position_action')=='correct':return
+ key=scope(s)
+ course=s.get('evidence',{}).get(key[1],{}).get('data',{})
+ if course.get('reference_simulation') is not True:return
+ rows=pair(s)
+ pos=fresh_position(s,now)
+ if len(rows)!=2 or not pos or rows[-1]['id'] not in pos.get('evidence_ids',[]):return
+ if not all(live(s,row) for row in rows):return
+ if preserve_played_shots and simulated_tee(s,key,rows[-1]['point']):return
+ if not any(s['evidence'][eid].get('observed_at')==p['observed_at'] for eid in rows[-1]['evidence_ids']):return
+ hole=next((h for h in course.get('holes',[]) if h['number']==key[2]),{})
+ from journey_simulation_score import simulated_green_point
+ if all(simulated_green_point(hole,row['point']) for row in rows):return
+ j=s['journey']
+ ids=[row['id'] for row in rows]
+ records=j.setdefault('confirmed_shot_distances',[])
+ if any(row['scope']==list(key) and row['pair_ids']==ids and row.get('valid') for row in records):return
+ if any(row['scope']==list(key) and row['pair_ids']==ids for row in j.get('rejected_shot_links',[])):return
+ report=j.get('previous_club_reports',{}).get(canonical([*key,*ids]),{})
+ choice=j.get('simulated_club_choice',{}) if preserve_played_shots else {}
+ if (choice and choice['scope']==list(key) and 0<=now-choice['at']<=900
+     and haversine(choice['point'],rows[0]['point'])<=5):
+  report=report or dict(club=choice['club'],source='confirmed_simulation_plan',event_id=choice['event_id'])
+  j.pop('simulated_club_choice',None)
+ records.append(dict(id=p['event_id'],scope=list(key),pair_ids=ids,endpoints=copy.deepcopy(rows),
+                     total_horizontal_m=haversine(rows[0]['point'],rows[1]['point']),
+                     distance_type='total_horizontal',carry=False,learning_eligible=False,
+                     club=report.get('club'),club_source=report.get('source'),club_event_id=report.get('event_id'),
+                     valid=True,simulated_landing=True))
+ return True

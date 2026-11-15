@@ -50,6 +50,13 @@ def reduce_journey(s,p,seq,now):
   if pin:
    unit='米' if '米' in text else '码' if '码' in text else j.get('profile',{}).get('units',{}).get('value','码')
    result=present(s,p,{'text':pin_distance_wording(pin,unit)+'。这是旗位区域估算。','pin_distance_estimate':pin},now)
+  elif p.get('_pin_distance_prompt_v89') and fresh_position(s,now) and (not row or row['status']=='pending') and not silent(s):
+   if not row:
+    row={'scope':scope(s),'status':'pending','depth':None,'side':None,
+         'source':'user_observation','source_events':[],'coordinates':None}
+    j.setdefault('pin_locations',{})[key]=row
+   row['distance_query_unit']='米' if '米' in text else '码' if '码' in text else j.get('profile',{}).get('units',{}).get('value','码')
+   result=prompt(s,p,row,now)
   else:
    reason='先更新当前位置，我再估算旗位距离。' if not fresh_position(s,now) else '目前缺少可用的旗位或果岭轮廓，距离可先参考果岭中心。'
    result=present(s,p,{'text':reason},now)
@@ -73,7 +80,16 @@ def reduce_journey(s,p,seq,now):
   elif owner=='pin.side' and side:row['side']=side;row['status']='complete';row['source_events'].append(p['event_id']);answered=True
   elif enhanced and (assent(text) is not None or depth or side):
    result=prompt(s,p,row,now)
-  if answered:adapted['text']='怎么打'
+  if answered:
+   unit=row.pop('distance_query_unit',None) if p.get('_pin_distance_prompt_v89') else None
+   if unit:
+    pin=estimate(s,now,short_game_only=False)
+    if pin:
+     result=present(s,p,{'text':pin_distance_wording(pin,unit)+'。这是旗位区域估算。','pin_distance_estimate':pin},now)
+    else:
+     result=present(s,p,{'text':'目前无法估算旗位距离，可以先参考果岭中心。'},now)
+   else:
+    adapted['text']='怎么打'
  if result is None:
   from journey import reduce_journey as previous
   result=previous(s,adapted,seq,now);j=s['journey'];c=j.get('consultation') or {}
@@ -86,7 +102,9 @@ def reduce_journey(s,p,seq,now):
    row=j.setdefault('pin_locations',{}).get(key)
    if not row:
     row={'scope':scope(s),'status':'pending','depth':None,'side':None,'source':'user_observation','source_events':[],'coordinates':None};j['pin_locations'][key]=row
-   if row['status']=='pending':result=prompt(s,p,row,now)
+   if row['status']=='pending':
+    if p.get('_pin_distance_prompt_v89'):row.pop('distance_query_unit',None)
+    result=prompt(s,p,row,now)
    else:
     parts=[row['depth']+'旗' if row['depth']!='unknown' else '',('偏'+row['side']) if row['side'] in ('左','右') else '居中' if row['side']=='中' else '']
     pin=''.join(parts)
@@ -96,7 +114,22 @@ def reduce_journey(s,p,seq,now):
      pin=c['strategy_assessment'].get('pin_distance_estimate')
      if pin:result={**result,'pin_distance_estimate':pin}
      suffix='' if c['strategy_assessment'].get('practical_rough') else '这是旗位区域估算。' if pin else '目前按果岭参考点估算距离。'
-     result=present(s,p,{**result,'text':note+result['text']+suffix,'pin_location':copy.deepcopy(row)},now)
+     result={**result,'text':note+result['text']+suffix,'pin_location':copy.deepcopy(row)}
+     if p.get('_simulation_shot_v93'):
+      from iron_estimates import present_iron_option
+      from speech_presentation import spoken_text
+      from shot_links import scope as shot_scope
+      pos=fresh_position(s,now)
+      spoken=spoken_text(result['text'],reference_course=bool((j.get('round') or {}).get('reference_simulation')))
+      if result.get('mapped_crossing'):
+       rendered,option=spoken,c['strategy_assessment'].get('crossing_option')
+      else:
+       rendered,option=present_iron_option(s,spoken,now,pin=pin,strategy=True,verified_lines=True)
+      if option and pos and not silent(s):
+       j['approach_club_offer']=dict(club=option['club'],scope=list(shot_scope(s)),
+                                   point=copy.deepcopy(pos['value']),event_id=p['event_id'],at=now)
+       result.update(text=rendered,estimated_iron_option=option)
+     result=present(s,p,result,now)
  # Incomplete answers may be resumed on another strategy request; factual interruptions stay intact.
  j.setdefault('pin_receipts',{})[p['event_id']]=sha
  return result

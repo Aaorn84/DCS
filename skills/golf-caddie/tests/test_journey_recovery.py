@@ -298,3 +298,142 @@ class LandingCorrectionTests(InferredPuttsTests):
   rows=self.e.state('j')['journey']['confirmed_shot_distances']
   self.assertEqual([row['valid'] for row in rows],[False,True])
   self.assertEqual(self.e.state('j'),self.e.replay('j'))
+
+
+class ImmediateLandingDistanceTests(unittest.TestCase):
+ protocol_version=91
+ setUp=JourneyRecoveryTests.setUp
+ tearDown=JourneyRecoveryTests.tearDown
+ send=JourneyRecoveryTests.send
+ gps=JourneyRecoveryTests.gps
+ onboard=JourneyRecoveryTests.onboard
+
+ def test_map_landing_appears_before_score(self):
+  self.onboard()
+  for text in ('1','轻松打球','开始球局'):self.send(text)
+  self.gps('tee');self.gps('fairway')
+  state=self.e.state('j')
+  row=view(state)['round_records']['clubs'][0]
+  self.assertEqual(row['stroke_number'],1)
+  self.assertGreater(row['total_horizontal_m'],0)
+  self.assertIn('上一杆水平总距离',self.send('打了多少')['text'])
+  self.assertEqual(self.e.state('j'),self.e.replay('j'))
+
+
+class ScoreWordingTests(ImmediateLandingDistanceTests):
+ protocol_version=92
+
+ def test_three_strokes_two_putts_confirmation_text(self):
+  self.onboard()
+  for text in ('1','轻松打球','开始球局'):self.send(text)
+  self.gps('tee');self.gps('fairway')
+  points=preview(1)['positions'];a,b=points['fairway'],points['green']
+  mid=dict(a,latitude=(a['latitude']+b['latitude'])/2,longitude=(a['longitude']+b['longitude'])/2,simulation_source='map_click')
+  self.send(type='gps',data=mid)
+  self.gps('green')
+  self.send(type='simulation_hole',hole=2)
+  self.assertEqual(self.send('5杆')['text'],'第1洞5杆（已含罚杆），3杆上果岭，2推。确认记录吗？')
+  self.assertTrue(self.send('确认')['saved'])
+  self.assertEqual(self.e.state('j'),self.e.replay('j'))
+
+
+class SimulatedParThreeShotTests(unittest.TestCase):
+ protocol_version=93
+ setUp=JourneyRecoveryTests.setUp
+ tearDown=JourneyRecoveryTests.tearDown
+ send=JourneyRecoveryTests.send
+ onboard=JourneyRecoveryTests.onboard
+
+ def test_confirm_club_land_on_green_return_to_tee_and_score(self):
+  self.onboard()
+  for text in ('2','轻松打球','开始球局'):self.send(text)
+  positions=preview(2)['positions']
+  def move(kind):
+   return self.send(type='gps',data=dict(positions[kind],simulation_source='map_click'))
+  move('tee')
+  self.send('怎么打')
+  advice=self.send('后旗偏右')
+  self.assertEqual(advice['estimated_iron_option']['club'],'6号铁')
+  self.assertIn('6号铁',self.send('可以')['text'])
+  self.assertEqual(view(self.e.state('j'))['round_records']['clubs'],[])
+  self.assertTrue(move('green')['simulated_shot_recorded'])
+  self.assertFalse(move('tee').get('simulated_shot_recorded'))
+  self.assertIn('上一杆水平总距离',self.send('上一杆打了多少')['text'])
+  rows=view(self.e.state('j'))['round_records']['clubs']
+  self.assertEqual([(r['hole'],r['stroke_number'],r['club']) for r in rows],[(2,1,'6号铁')])
+  self.send(type='simulation_hole',hole=3)
+  self.assertIn('第2洞3杆（已含罚杆），1杆上果岭，2推。确认记录吗？',self.send('3杆')['text'])
+  self.assertTrue(self.send('确认')['saved'])
+  self.assertEqual(view(self.e.state('j'))['round_records']['clubs'],rows)
+  self.assertEqual(self.e.state('j'),self.e.replay('j'))
+
+
+class MappedTeeFallbackTests(unittest.TestCase):
+ protocol_version=94
+ setUp=JourneyRecoveryTests.setUp
+ tearDown=JourneyRecoveryTests.tearDown
+ send=JourneyRecoveryTests.send
+
+ def test_carry_finds_fairway_beside_right_bunker(self):
+  for text in ('可以记住','球友','好','好','200','不知道','偏右',
+               '东莞凤凰山（A+B蓝台演示）','蓝台','6','轻松打球','开始球局'):
+   self.send(text)
+  self.send(type='gps',data=dict(preview(6)['positions']['tee'],simulation_source='map_click'))
+  advice=self.send('怎么打')
+  self.assertIn('近处右侧约205码的沙坑左边',advice['text'])
+  self.assertIn('195–205码',advice['text'])
+  self.assertIn('按这个打',advice['choices'])
+  self.assertIn('一号木',self.send('按这个打')['text'])
+  self.assertEqual(self.e.state('j'),self.e.replay('j'))
+
+ def test_water_across_aim_line_blocks_mapped_fallback(self):
+  from tee_geometry import tee_targets
+
+  def surface(kind, x1, x2, y1, y2):
+   ring=[[x/111195,y/111195] for x,y in ((x1,y1),(x2,y1),(x2,y2),(x1,y2),(x1,y1))]
+   return dict(id=kind,surface=kind,verified=True,source='test',geometry=dict(type='Polygon',coordinates=[ring]))
+
+  fairway=surface('fairway',-30,30,150,220)
+  water=surface('water',-30,30,90,110)
+  hole=dict(number=1,objects=[dict(kind='green_center',latitude=.003,longitude=0)],
+            surface_zones=[fairway])
+  origin=dict(latitude=0,longitude=0,accuracy_m=2)
+  state=dict(facts={'context.device_position':dict(valid=True,status='confirmed',value=origin)},
+             evidence={'course':dict(data=dict(holes=[hole]))})
+  analysis=dict(course_evidence='course',hole=1)
+  clubs=[('driver',dict(label='一号木',carry_yards=200))]
+  self.assertTrue(tee_targets(state,analysis,clubs))
+  hole['surface_zones'].append(water)
+  self.assertEqual(tee_targets(state,analysis,clubs),[])
+  self.assertTrue(tee_targets(state,analysis,clubs,allow_crossing=True))
+  from tee_strategy import suggest
+  analysis.update(par=4,clubs=dict(clubs),candidates=[],position_version=1)
+  offer=suggest(state,analysis,mapped_fallback=True,carry_crossing=True)
+  self.assertTrue(offer['options'])
+  self.assertIn('飞越',offer['text'])
+  hole['surface_zones'][-1]=surface('water',-45,45,90,230)
+  self.assertEqual(tee_targets(state,analysis,clubs,allow_crossing=True),[])
+
+
+class ParFiveTeePlanTests(unittest.TestCase):
+ protocol_version=95
+ setUp=JourneyRecoveryTests.setUp
+ tearDown=JourneyRecoveryTests.tearDown
+ send=JourneyRecoveryTests.send
+ onboard=JourneyRecoveryTests.onboard
+
+ def test_hole_three_plans_through_the_third_shot(self):
+  self.onboard()
+  for text in ('3','轻松打球','开始球局'):self.send(text)
+  self.send(type='gps',data=dict(preview(3)['positions']['tee'],simulation_source='map_click'))
+  advice=self.send('这杆怎么打')['text']
+  self.assertIn('一号木瞄右侧约290码的沙坑左边',advice)
+  self.assertIn('远沿约185码',advice)
+  self.assertIn('目标Carry约145码',advice)
+  self.assertIn('第三杆到果岭参考点约90码',advice)
+  self.assertIn('一号木',self.send('按这个打')['text'])
+  self.assertIn('Carry',self.send('4号铁木杆')['text'])
+  alternative=self.send('4号铁木杆190码')['text']
+  self.assertIn('4号铁木杆',alternative)
+  self.assertIn('第三杆到果岭参考点约115码',alternative)
+  self.assertEqual(self.e.state('j'),self.e.replay('j'))

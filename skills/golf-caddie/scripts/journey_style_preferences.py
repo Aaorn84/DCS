@@ -169,8 +169,8 @@ def reduce_journey(state, event, seq, now):
         return {'text': '', 'speak_allowed': False, 'duplicate': True}
 
     text = event.get('text', '').strip().rstrip('。！!')
-    enhanced = event.get('protocol_version') in (55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88)
-    edge_enabled = event.get('protocol_version') in (56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88)
+    enhanced = event.get('protocol_version') in (55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96)
+    edge_enabled = event.get('protocol_version') in (56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96)
     offer = journey.get('tee_route_options') or {}
     selected = (tee_choice(text) if enhanced and event.get('type') == 'message'
                 and offer.get('status') == 'awaiting_choice'
@@ -208,11 +208,11 @@ def reduce_journey(state, event, seq, now):
             from wedge_leave import record_or_query
 
             reply = record_or_query(state, text, event_id, combinations=event['protocol_version'] >= 61)
-        if reply is None and event.get('protocol_version') in (58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88):
+        if reply is None and event.get('protocol_version') in (58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96):
             from on_course_preferences import approach_note, respond as on_course_reply
 
             reply = on_course_reply(state, text, event_id, now, check_layup_match=event['protocol_version'] >= 59, learned_leave=learned_leave, learned_pace=event['protocol_version'] >= 65) or approach_note(journey, text)
-        if event.get('protocol_version') in (57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88) and reply is None:
+        if event.get('protocol_version') in (57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96) and reply is None:
             reply = swing_reply(state, journey, text, event_id)
         if edge_enabled and reply is None:
             reply = edge_reply(state, journey, text, event_id)
@@ -275,8 +275,24 @@ def reduce_journey(state, event, seq, now):
             adapted['_aim_lines_v86'] = True
         if event['protocol_version'] >= 87:
             adapted['_audit_v87'] = True
-        if event['protocol_version'] == 88:
+        if event['protocol_version'] >= 88:
             adapted['_correction_v88'] = True
+        if event['protocol_version'] >= 89:
+            adapted['_pin_distance_prompt_v89'] = True
+        if event['protocol_version'] >= 90 and event.get('type') == 'message':
+            pitching_choice = re.fullmatch(r'好的[，,\s]*(用[Pp]杆(?:吧)?[。！!]?)', text)
+            if pitching_choice:
+                adapted['text'] = pitching_choice[1]
+        if event['protocol_version'] >= 92:
+            adapted['_score_wording_v92'] = True
+        if event['protocol_version'] >= 93:
+            adapted['_simulation_shot_v93'] = True
+        if event['protocol_version'] >= 94:
+            adapted['_tee_geometry_v94'] = True
+        if event['protocol_version'] >= 95:
+            adapted['_par_five_v95'] = True
+        if event['protocol_version'] >= 96:
+            adapted['_carry_crossing_v96'] = True
         decisions_before=len(journey.get('player_decisions', []))
         result = previous(state, adapted, seq, now)
         journey = state['journey']
@@ -286,6 +302,14 @@ def reduce_journey(state, event, seq, now):
             result = update(state, event, now, before, result,
                             decision=(journey.get('player_decisions') or [None])[-1]
                             if event['protocol_version'] >= 70 and len(journey.get('player_decisions', [])) > decisions_before else None)
+        if (event['protocol_version'] >= 91 and event.get('type')=='gps'
+                and journey.get('stage')=='active' and not result.get('ignored') and not result.get('duplicate')):
+            from shot_links import record_simulated_landing
+
+            preserve_played_shots = event['protocol_version'] >= 93
+            recorded = record_simulated_landing(state,event,now,preserve_played_shots=preserve_played_shots)
+            if preserve_played_shots and recorded:
+                result['simulated_shot_recorded'] = True
         if event['protocol_version'] >= 71 and result.get('saved'):
             from score_shot_reconciliation import reconcile
 

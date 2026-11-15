@@ -43,4 +43,34 @@ class MapFirstTests(unittest.TestCase):
   self.assertEqual(assess(s,time.time())['verdict'],'unknown')
  def test_explicit_lie_correction_has_priority(self):
   s=self.scene();s['journey']['consultation'].update(lie_report='沙坑',lie_evidence={'source':'user_report'});self.assertIn('脱困',handle(s,dict(text='打高飞还是切滚？',event_id='q'),time.time()))
+ def test_mapped_sand_retains_a_flight_option_near_green(self):
+  s=self.scene()
+  h=s['evidence']['map']['data']['holes'][0]
+  h['surface_zones'].append(self.zone('b','bunker',-.00005,-.00019,.00005,-.00018))
+  out=handle(s,dict(text='打高飞还是切滚？',event_id='q',_carry_crossing_v96=True),time.time())
+  self.assertIn('沙坑远沿约',out)
+  self.assertIn('目标Carry',out)
+  self.assertIn('抛切',out)
+
+ def test_hazard_behind_target_does_not_require_a_flyover(self):
+  from hazard_route import green_crossing_advice
+  s=self.scene()
+  s['evidence']['map']['data']['holes'][0]['surface_zones'].append(
+   self.zone('back','bunker',-.00005,.000025,.00005,.00007))
+  self.assertIsNone(green_crossing_advice(s,time.time(),short_game=True))
+
+ def test_fairway_approach_uses_carry_to_clear_water(self):
+  from approach_dialogue import advise
+  s=self.scene()
+  s['facts']['context.device_position']['value']['latitude']=-.0013
+  h=s['evidence']['map']['data']['holes'][0]
+  h['surface_zones'].append(self.zone('w','water',-.00005,-.00033,.00005,-.0002))
+  c=dict(lie_report='球道',ball_position_report='user_confirmed')
+  out=advise(s,c,time.time(),carry_crossing=True)
+  self.assertTrue(out['mapped_crossing'])
+  self.assertIn('水障碍远沿约',out['text'])
+  self.assertIn('目标Carry',out['text'])
+  h['surface_zones'][-1]=self.zone('w','water',-.00005,-.00033,.00005,.000085)
+  self.assertIn('停球空间不足',advise(s,c,time.time(),carry_crossing=True)['text'])
+
 if __name__=='__main__':unittest.main()

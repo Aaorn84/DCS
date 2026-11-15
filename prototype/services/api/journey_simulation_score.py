@@ -45,12 +45,30 @@ def reduce_journey(s,p,seq,now):
       if polygon_contains([ring],pos['value']):
        previous_on_green=True
        break
+  played_green=None
+  if p.get('_simulation_shot_v93'):
+   from shot_links import scope,simulated_tee,valid_record
+   pos=fresh_position(s,now)
+   key=scope(s)
+   if pos and simulated_tee(s,key,pos['value']):
+    course=s.get('evidence',{}).get(key[1],{}).get('data',{})
+    hole=next((h for h in course.get('holes',[]) if h['number']==previous_hole),{})
+    records=[row for row in s['journey'].get('confirmed_shot_distances',[])
+             if row.get('simulated_landing') and valid_record(s,row)
+             and not simulated_tee(s,key,row['endpoints'][-1]['point'])]
+    if records and simulated_green_point(hole,records[-1]['endpoints'][-1]['point']):
+     played_green=records[-1]['endpoints'][-1]['point']
+     previous_on_green=True
   if previous_on_green and p.get('_infer_putts_v74'):
    from shot_links import scope,pair,valid_record
    points=pair(s)
    shot_scope=scope(s)
    candidates=[row for row in s['journey'].get('shot_location_candidates',[])
                if (row['round_id'],row['course'],row['hole'])==shot_scope]
+   if played_green:
+    while candidates and simulated_tee(s,shot_scope,candidates[-1]['point']):
+     candidates.pop()
+    points=candidates[-2:]
    if len(candidates)==2 and points:
     # The two points must start at the tee, not at an intermediate ball position.
     course=s.get('evidence',{}).get(shot_scope[1],{}).get('data',{})
@@ -59,7 +77,7 @@ def reduce_journey(s,p,seq,now):
     ids=[row['id'] for row in points]
     pos=fresh_position(s,now)
     one_to_green=bool(tee and pos and haversine(tee,points[0]['point'])<=10
-                     and haversine(pos['value'],points[-1]['point'])<=5
+                     and haversine(played_green or pos['value'],points[-1]['point'])<=5
                      and any(valid_record(s,row) and row['pair_ids']==ids and not row.get('inferred_from_score')
                              for row in s['journey'].get('confirmed_shot_distances',[])))
    if p.get('_infer_multi_putts_v79') and len(candidates)>=2:
@@ -83,7 +101,7 @@ def reduce_journey(s,p,seq,now):
       stayed_on_green=all(simulated_green_point(hole,row['point']) for row in candidates[first_green:])
       trail=candidates[:first_green+1] if stayed_on_green else []
     if (len(trail)>=2 and tee and pos and haversine(tee,trail[0]['point'])<=10
-        and haversine(pos['value'],candidates[-1]['point'])<=5
+        and haversine(played_green or pos['value'],candidates[-1]['point'])<=5
         and all((a['id'],b['id']) in confirmed for a,b in zip(trail,trail[1:]))):
      strokes_to_green=len(trail)-1
  adapted=copy.deepcopy(p);adapted['protocol_version']=41

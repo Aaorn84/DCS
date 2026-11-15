@@ -1,5 +1,6 @@
 """Bounded tee facts and conditional options; never equates carry with GPS displacement."""
 from datetime import datetime
+import math
 from shot_evidence import haversine
 from gps_transition import inside,POLICY
 from round_state import fact_value
@@ -20,8 +21,10 @@ def analyze(s,now):
     if len(green)!=1:return None
     yards=haversine(gps,green[0])/.9144
     profile=j.get('profile',{});clubs={}
-    for key,label in [('driver','一号木'),('three_wood','3号木'),('long_iron','长铁杆'),('seven','7号铁')]:
+    for key,label in [('driver','一号木'),('three_wood','3号木'),('hybrid','铁木杆'),('long_iron','长铁杆'),('seven','7号铁')]:
         v=profile.get(key,{}).get('value',{})
+        if key=='hybrid' and isinstance(v,dict) and v.get('club_name'):
+            label=v['club_name']
         if key=='long_iron' and isinstance(v,dict) and v.get('club_name') in [str(n)+suffix for n in range(2,7) for suffix in ('铁','号铁')]:label=v['club_name']
         if isinstance(v,dict) and v.get('distance_type')=='carry' and v.get('units') in ('码','米') and type(v.get('distance')) in (int,float) and 0<v['distance']<=400:
             clubs[key]={'label':label,'carry_yards':v['distance']/(.9144 if v['units']=='米' else 1),'source':'user_report','not_calibrated':True}
@@ -131,3 +134,130 @@ def arrival(j,a,timestamp):
         tr.update(hole=key,since=timestamp,fixes=0)
     tr['fixes']+=1
     return tr['fixes']>=POLICY['min_fixes'] and timestamp-tr['since']>=POLICY['dwell_seconds']
+
+
+def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=None, *, mapped_fallback=False, par_five_plan=False, carry_crossing=False):
+    offer = proposal(analysis, intent, unit, unavailable, selected)
+    plan_three = par_five_plan and analysis['par'] == 5
+    if not mapped_fallback or (offer['options'] and not plan_three) or analysis['par'] not in (4, 5):
+        return offer
+    if selected:
+        from club_selection import same_label
+        club = analysis['clubs'].get(selected['key'])
+        if not club or not same_label(club['label'], selected['label']):
+            return offer
+        clubs = [(selected['key'], club)]
+    else:
+        clubs = list(analysis['clubs'].items())
+    from tee_geometry import tee_targets
+    targets = tee_targets(state, analysis, clubs, allow_crossing=plan_three or carry_crossing)
+    if not targets:
+        return offer
+    aggressive = bool(intent and any(word in intent for word in ('进攻', '进取', '积极')))
+    choice = max(targets, key=lambda row: (row['carry_yards'], row['width_m']) if aggressive
+                 else (row['width_m'], row['carry_yards']))
+    if plan_three:
+        routes = par_five_routes(state, analysis, targets)
+        if routes:
+            choice = min(routes, key=lambda row: (row['leave_error'], row['crossings'],
+                                                  -min(row['width_m'], row['layup']['width_m']),
+                                                  -row['carry_yards']))
+    target = aiming_text(choice, unit)
+    scale = .9144 if unit == '米' else 1
+    carry = choice['carry_yards']
+    low = round(choice['low_yards']*scale)
+    high = round(choice['high_yards']*scale)
+    label = choice['club']
+    text = f"按地图估算，可用{label}瞄{target}，候选落区约{low}–{high}{unit}。"
+    text += crossing_text(choice, unit)
+    if choice.get('layup'):
+        layup = choice['layup']
+        second = aiming_text(layup, unit)
+        text += (f"从这个落点，第二杆可瞄{second}，目标Carry约{round(layup['carry_yards']*scale/5)*5}{unit}，"
+                 f"第三杆到果岭参考点约{round(choice['leave_yards']*scale/5)*5}{unit}。")
+        text += crossing_text(layup, unit)
+        text += '开球落定后，按实际球位和滚动空间重新选第二杆。'
+    elif plan_three:
+        text += '第二杆等开球落定后，再核对过渡落区和第三杆留距。'
+    elif choice['crossing_m'] is None:
+        text += '这条瞄准线给地图已标的障碍留有余量，现场再看风和滚动空间。'
+    option = dict(id=f"geometry:{choice['club_key']}:{choice['offset']}", club=label,
+                  hole=analysis['hole'], target=target, carry_yards=carry,
+                  aim_point=choice['aim_point'], position_version=analysis['position_version'],
+                  course_evidence=analysis['course_evidence'], strategy='mapped_carry_candidate',
+                  intent_source='user_report' if intent else 'unset')
+    if choice.get('layup'):
+        option['layup'] = dict(aim_point=layup['aim_point'], carry_yards=layup['carry_yards'],
+                               leave_yards=choice['leave_yards'])
+    return {'text': text, 'continuation_text': text, 'options': [option]}
+
+
+def aiming_text(choice, unit):
+    reference = choice['reference']
+    scale = .9144 if unit == '米' else 1
+    if reference:
+        distance = round(reference['distance_m']/.9144*scale/5)*5
+        target = (f"{reference['rank']}{reference['bunker_side']}侧约{distance}{unit}的沙坑"
+                  f"{reference['aim_side']}边的球道")
+    else:
+        offset = choice['offset']
+        direction = f"向{'右' if offset > 0 else '左'}约{abs(offset)}度"
+        target = f"果岭参考方向{direction}的球道" if offset else '朝果岭参考点方向的球道'
+    return target
+
+
+def crossing_text(choice, unit):
+    if choice['crossing_m'] is None:
+        return ''
+    scale = 1 if unit == '米' else .9144
+    far = math.ceil(choice['crossing_m']/scale/5)*5
+    return f"沿这条线要飞越地图上的障碍，远沿约{far}{unit}，现场确认有飞越余量再打。"
+
+
+def par_five_routes(state, analysis, targets):
+    from tee_geometry import tee_targets
+    journey = state['journey']
+    course = state['evidence'][analysis['course_evidence']]['data']
+    hole = next(h for h in course['holes'] if h['number'] == analysis['hole'])
+    green = next(o for o in hole['objects'] if o['kind'] == 'green_center')
+    preference = journey['profile'].get('shot_style_preferences', {}).get('leave_distance')
+    if not preference:
+        from wedge_leave import suggested_leave
+        preference = suggested_leave(journey)
+    preferred = preference['value']/(.9144 if preference['unit'] == '米' else 1) if preference else 90
+    max_layup = max((club['carry_yards'] for key, club in analysis['clubs'].items()
+                     if key != 'driver'), default=220)
+    routes = []
+    for tee in targets:
+        landing = tee['aim_point']
+        remaining = haversine(landing, green)/.9144
+        nominal_layup = remaining-preferred
+        distances = [d for d in range(35, 221, 10) if d<=max_layup and abs(d-nominal_layup)<=35 and d<remaining-25]
+        if not distances:
+            continue
+        layups = tee_targets(state, analysis, [(str(d), {'label':'', 'carry_yards':d}) for d in distances],
+                             origin=landing, allow_crossing=True)
+        for layup in layups:
+            leave = haversine(layup['aim_point'], green)/.9144
+            if 25 <= leave < remaining-15:
+                routes.append(dict(tee, layup=layup, leave_yards=leave,
+                                   leave_error=max(0,abs(leave-preferred)-5),
+                                   crossings=sum(shot['crossing_m'] is not None for shot in (tee,layup))))
+    return routes
+
+
+def same_target(previous, updated):
+    if not updated or any(previous.get(key) != updated.get(key)
+                          for key in ('id', 'club', 'target', 'course_evidence', 'hole')):
+        return False
+    before_layup, after_layup = previous.get('layup'), updated.get('layup')
+    if before_layup or after_layup:
+        if (not before_layup or not after_layup
+                or before_layup['carry_yards'] != after_layup['carry_yards']
+                or haversine(before_layup['aim_point'],after_layup['aim_point']) > 3):
+            return False
+    if 'aim_point' in previous or 'aim_point' in updated:
+        return ('aim_point' in previous and 'aim_point' in updated
+                and previous['carry_yards'] == updated['carry_yards']
+                and haversine(previous['aim_point'], updated['aim_point']) <= 3)
+    return True

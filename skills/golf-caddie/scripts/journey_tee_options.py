@@ -111,7 +111,7 @@ def reduce_journey(s,p,seq,now):
   from approach_dialogue import requested
   advice=isinstance(text,str) and (requested(text) or bool(re.search(r'有何建议|有什么建议|有啥建议|给点建议|推荐一下',text)))
   carry_reply=before.get('phase')=='tee_club' and not before.get('selected_club')
-  if p.get('type')=='message' and (advice or carry_reply) and c.get('phase')=='tee_commit' and not c.get('selected_club'):
+  if p.get('type')=='message' and (advice or carry_reply) and c.get('phase')=='tee_commit' and not c.get('selected_club') and c.get('suggestion',{}).get('strategy')!='mapped_carry_candidate':
    a=analyze(s,now);routes=build_routes(s,a,now)
    if routes:result=offer(s,p,a,routes,now)
   if not (j.get('consultation') or {}).get('phase','').startswith('tee_') or (j.get('consultation') or {}).get('selected_club'):

@@ -154,3 +154,40 @@ class PitchingWedgeChoiceTests(SpokenPinLocationTests):
   self.assertEqual(decisions[-1]['club'],'P杆')
   self.assertFalse(decisions[-1]['execution_confirmed'])
   self.assertEqual(self.e.state('j'),self.e.replay('j'))
+
+
+class PinDistancePromptTests(unittest.TestCase):
+ setUp=base.RoundFlowTests.setUp
+ tearDown=base.RoundFlowTests.tearDown
+ begin=base.RoundFlowTests.begin
+ send=PinLocationTests.send
+ protocol_version=89
+
+ def test_ask_for_unknown_pin_then_answer_distance(self):
+  self.begin()
+  self.send(gps=dict(preview(1)['positions']['fairway'],simulation_source='map_click'))
+  self.assertIn('前部、中部',self.send('到旗位多少米？')['text'])
+  self.assertIn('偏左、居中',self.send('后部')['text'])
+  out=self.send('靠右')
+  self.assertIn('到旗位约',out['text'])
+  self.assertIn('米',out['text'])
+  self.assertNotIn('可考虑',out['text'])
+  self.assertEqual(self.e.state('j'),self.e.replay('j'))
+
+
+class PolitePitchingChoiceTests(unittest.TestCase):
+ setUp=base.RoundFlowTests.setUp
+ tearDown=base.RoundFlowTests.tearDown
+ begin=base.RoundFlowTests.begin
+ send=PinLocationTests.send
+ ask_pin_after_previous_distance=PinReplyRegressionTests.ask_pin_after_previous_distance
+ protocol_version=90
+
+ def test_polite_pitching_choice_after_pin_reply(self):
+  self.ask_pin_after_previous_distance()
+  self.send('右后')
+  self.assertIn('用P杆打向果岭中央',self.send('好的，用P杆')['text'])
+  decision=self.e.state('j')['journey']['player_decisions'][-1]
+  self.assertEqual(decision['club'],'P杆')
+  self.assertFalse(decision['execution_confirmed'])
+  self.assertEqual(self.e.state('j'),self.e.replay('j'))

@@ -59,6 +59,15 @@ def handle(s,p,now):
  inferred=infer(s,now);lie=c.get('lie_report') if c.get('lie_evidence',{}).get('source')=='user_report' else inferred['label'] if inferred else c.get('lie_report')
  j['last_short_game_advice']={'type':'system_advice','event_id':p['event_id'],'not_player_decision':True,'position_version':pos['version']}
  if club_advice and lie=='果岭':return '球已经在果岭上，用推杆。先把速度控制好，瞄能给下一推留下舒服距离的线路。'
+ if p.get('_carry_crossing_v96') and lie!='果岭':
+  from hazard_route import green_crossing_advice
+  from short_pin_distance import estimate
+  pin=estimate(s,now,include_aim=True)
+  crossing=green_crossing_advice(s,now,target=(pin or {}).get('aim'),short_game=True,lie=lie)
+  if crossing:
+   j.pop('short_game_question',None)
+   j['last_short_game_advice'].update(style='familiar_pitch_or_recovery',source='mapped_obstacle')
+   return crossing['text']
  if club_advice and lie=='沙坑':return '可以用熟悉的沙杆（SW）先出沙，瞄果岭较宽的位置。沙沿高的话，优先确保出沙。'
  if club_advice and lie=='长草':return '可以用熟悉的沙杆（SW）抛切，先落到果岭较宽处。长草容易影响触球，给落点留点余量。'
  if lie=='沙坑':return '如果球在沙坑，先以脱困为主，不用切滚穿沙沿。选你熟悉的沙坑打法，把球送到较宽的果岭区域，不追旗。'

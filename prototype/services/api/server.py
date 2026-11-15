@@ -292,7 +292,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.command=='GET' and path=='/health':
             return {'ok':True,'stage':'development','mapReady':False,
                     'provider':'deepseek' if os.environ.get('DEEPSEEK_API_KEY') else 'demo',
-                    'journeyProtocol':88,'roundStateReady':True,'courseGeometry':'point-bbox-prototype'}
+                    'journeyProtocol':96,'roundStateReady':True,'courseGeometry':'point-bbox-prototype'}
         body={}
         if self.command=='POST':
             try:
@@ -339,7 +339,7 @@ class Handler(BaseHTTPRequestHandler):
             finally:engine.close()
         if self.command=='POST' and path=='/journey':
             from journey import view as domain_view
-            def view(state):return dict(domain_view(state),runtime_protocol=88)
+            def view(state):return dict(domain_view(state),runtime_protocol=96)
             engine=Engine(self.server.store.path,user)
             rid='companion-journey'
             try:
@@ -350,10 +350,10 @@ class Handler(BaseHTTPRequestHandler):
                 if action!='event':raise Problem(400,'未知旅程操作')
                 event=body.get('event')
                 if not isinstance(event,dict):raise Problem(400,'event必须为对象')
-                if any(k in event for k in ('owner','user_id','operations','command','payload','demo_course_snapshot','_pin_reply_v52','_pin_reply_v67','_wedge_bag_v68','_dialogue_v69','_dialogue_v70','_dialogue_v71','_score_v72','_infer_putts_v74','_score_copy_v76','_wedge_continue_v77','_infer_multi_putts_v79','_zero_penalties_v80','_pitching_choice_v81','_sim_putts_v82','_practical_rough_v83','_followups_v84','_landing_depth_v85','_aim_lines_v86','_audit_v87','_correction_v88')):raise Problem(400,'不允许的控制字段')
+                if any(k in event for k in ('owner','user_id','operations','command','payload','demo_course_snapshot','_pin_reply_v52','_pin_reply_v67','_wedge_bag_v68','_dialogue_v69','_dialogue_v70','_dialogue_v71','_score_v72','_infer_putts_v74','_score_copy_v76','_wedge_continue_v77','_infer_multi_putts_v79','_zero_penalties_v80','_pitching_choice_v81','_sim_putts_v82','_practical_rough_v83','_followups_v84','_landing_depth_v85','_aim_lines_v86','_audit_v87','_correction_v88','_pin_distance_prompt_v89','_score_wording_v92','_simulation_shot_v93','_tee_geometry_v94','_par_five_v95','_carry_crossing_v96')):raise Problem(400,'不允许的控制字段')
                 expected=body.get('expected_version')
                 if expected is not None:number(expected,0,2**31-1)
-                event=dict(event,protocol_version=88)
+                event=dict(event,protocol_version=96)
                 result=engine.command(rid,text(body.get('operation_id'),100),'journey_event',event,expected_version=expected,server_protocol=True)
                 state=engine.state(rid)
                 from speech_presentation import spoken_text
@@ -369,9 +369,10 @@ class Handler(BaseHTTPRequestHandler):
                 if result.get('tee_preference_note') and result.get('text'):
                     result['text']=result['tee_preference_note']+result['text']
                 from iron_estimates import present_iron_option
-                rendered,iron_option=present_iron_option(state,result.get('text',''),time.time(),pin=result.get('pin_distance_estimate'),strategy=bool(result.get('pin_location')),verified_lines=True)
-                result['text']=rendered
-                if iron_option:result['estimated_iron_option']=iron_option
+                if not result.get('estimated_iron_option') and not result.get('mapped_crossing'):
+                    rendered,iron_option=present_iron_option(state,result.get('text',''),time.time(),pin=result.get('pin_distance_estimate'),strategy=bool(result.get('pin_location')),verified_lines=True)
+                    result['text']=rendered
+                    if iron_option:result['estimated_iron_option']=iron_option
                 if result.get('text') and (result.get('pin_location') or '用熟悉的短杆过渡' in result.get('choices', [])):
                     from lie_performance import approach_context
 

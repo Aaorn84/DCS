@@ -21,7 +21,7 @@ def prepare(s,c,now):
    c['lie_report']=inferred['label'];c['lie_evidence']=inferred
  return pos
 
-def advise(s,c,now,*, practical_rough=False, confirm_landing=False, use_landing_depth=False, verified_lines=False):
+def advise(s,c,now,*, practical_rough=False, confirm_landing=False, use_landing_depth=False, verified_lines=False, carry_crossing=False):
  calc=copy.deepcopy(c)
  if calc.get('ball_position_report')=='simulation_selected':calc['ball_position_report']='user_confirmed'
  from short_pin_distance import estimate
@@ -90,6 +90,17 @@ def advise(s,c,now,*, practical_rough=False, confirm_landing=False, use_landing_
    text+=('球浮在草上，就用熟悉的挖起杆抛切，落在果岭较宽处。'
           '球埋得深，先打到好球位。如果前面有沙坑，先看清远沿和沙坑后的落点。')
   out['practical_rough']=True
+ if carry_crossing and calc.get('ball_position_report')=='user_confirmed':
+  from hazard_route import green_crossing_advice
+  aimed=estimate(s,now,short_game_only=False,include_aim=True) if pin else None
+  crossing=green_crossing_advice(s,now,target=(aimed or {}).get('aim'),lie=c.get('lie_report'))
+  if crossing:
+   from short_pin_distance import pin_distance_wording
+   unit=s['journey'].get('profile',{}).get('units',{}).get('value','码')
+   prefix=pin_distance_wording(pin,unit) if pin else text.split('。',1)[0]
+   text=prefix+'。'+crossing['text']
+   out.update(mapped_crossing=True,crossing_option=crossing.get('option'),suggestion=None)
+   out.pop('rough_landing_question',None)
  out['text']=text
  out['position_provenance']=c.get('ball_position_evidence',{})
  return out
