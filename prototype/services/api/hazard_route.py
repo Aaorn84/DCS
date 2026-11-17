@@ -158,10 +158,13 @@ def landing_line(state, now, target=None, *, corridor=False, include_ob=False, s
          'hazard_coverage_complete':hole.get('hazard_coverage_complete') is True}
 
 
-def green_crossing_advice(state, now, *, target=None, short_game=False, lie=None):
+def green_crossing_advice(state, now, *, target=None, short_game=False, lie=None, verify_playability=False, allow_roll_in=False, compare_safety=False):
  """Keep an airborne option when a mapped hazard leaves a usable carry window."""
  line=landing_line(state,now,target,corridor=True,include_ob=True,stop_at_target=True)
  if not line or not any(v is not None for v in line['hazards'].values()):
+  return None
+ short_distance=line['target_m']<=50*.9144
+ if verify_playability and short_game and not short_distance:
   return None
  far,kind=max((value,kind) for kind,value in line['hazards'].items() if value is not None)
  profile=state.get('journey',{}).get('profile',{})
@@ -183,8 +186,13 @@ def green_crossing_advice(state, now, *, target=None, short_game=False, lie=None
  if low>high:
   return {'text':text+'按远沿和可用落点算，这条线的飞越与停球空间不足。可以改瞄果岭较宽处，再核对另一条线的Carry。'}
  distance=f'{low}–{high}{unit}' if low<high else f'{low}{unit}'
- text+=f'落点放在障碍后，目标Carry约{distance}。'
- if short_game or lie in ('长草','沙坑'):
+ if verify_playability and not short_distance and lie in ('长草','沙坑','不清楚'):
+  return {'text':text+f'这条攻果岭线需要Carry约{distance}。按当前球位，先把球送回看得见、较宽的球道，再从实际落点规划下一杆。'}
+ if not verify_playability or short_distance:
+  text+=f'落点放在障碍后，目标Carry约{distance}。'
+ else:
+  text+=f'这条攻果岭线需要Carry约{distance}。'
+ if short_game or (lie in ('长草','沙坑') and (not verify_playability or short_distance)):
   return {'text':text+'如果这个球位能打出你熟悉的抛切高度和Carry，可以走这条线。现场核对触球、障碍边缘和滚动空间后再打。'}
  from iron_estimates import iron_table,pitching_wedge
  table=iron_table(profile)
@@ -192,12 +200,21 @@ def green_crossing_advice(state, now, *, target=None, short_game=False, lie=None
  wedge=pitching_wedge(profile,table)
  if wedge:
   clubs.append(('P杆',wedge['carry_yards']))
- for key,label in (('driver','一号木'),('three_wood','3号木'),('hybrid','铁木杆'),('long_iron','长铁杆')):
-  club=profile.get(key,{}).get('value') or {}
-  if isinstance(club,dict) and club.get('distance_type')=='carry' and club.get('units') in ('米','码'):
-   distance=club.get('distance')
-   if type(distance) in (int,float) and 0<distance<=400:
-    clubs.append((club.get('club_name') or label,distance/(.9144 if club['units']=='米' else 1)))
+ if verify_playability:
+  from tee_strategy import reported_carry_clubs
+  from club_selection import same_label
+  for key,club in reported_carry_clubs(profile).items():
+   if key=='driver' and lie!='发球台':
+    continue
+   clubs=[entry for entry in clubs if not same_label(entry[0],club['label'])]
+   clubs.append((club['label'],club['carry_yards']))
+ else:
+  for key,label in (('driver','一号木'),('three_wood','3号木'),('hybrid','铁木杆'),('long_iron','长铁杆')):
+   club=profile.get(key,{}).get('value') or {}
+   if isinstance(club,dict) and club.get('distance_type')=='carry' and club.get('units') in ('米','码'):
+    distance=club.get('distance')
+    if type(distance) in (int,float) and 0<distance<=400:
+     clubs.append((club.get('club_name') or label,distance/(.9144 if club['units']=='米' else 1)))
  fits=[(abs(carry*.9144/scale-(low+high)/2),club) for club,carry in clubs
        if low<=carry*.9144/scale<=high]
  option=None
@@ -205,6 +222,21 @@ def green_crossing_advice(state, now, *, target=None, short_game=False, lie=None
   _,club=min(fits)
   text+='按现有杆距，可考虑'+club+'。'
   option={'club':club,'status':'candidate','source':'mapped_crossing_window','not_for_learning':True}
+ elif verify_playability and not short_distance:
+  if lie=='球道':
+   from tee_strategy import actual_position_layup,actual_position_roll_in
+   direct=actual_position_roll_in(state,now,unit,compare_safety=compare_safety,direct=True)
+   if direct:
+    return {**direct,'text':text+'也可以改瞄果岭内的另一处落点。'+direct['text'],
+            'attack_candidate':True}
+   roll=actual_position_roll_in(state,now,unit,compare_safety=compare_safety) if allow_roll_in else ''
+   if roll:
+    return {**roll,'text':text+roll['text'],**({'attack_candidate':True} if compare_safety else {})}
+   layup=actual_position_layup(state,now,compare_safety=True) if compare_safety else actual_position_layup(state,now)
+  else:
+   layup=''
+  return {'text':text+'现有杆距未匹配到已核对的攻果岭落点，先确认你能稳定打约'+distance+'的球杆和Carry。'
+          +(layup or '先找一段看得见、够宽的球道过渡，再按实际落点规划下一杆。')}
  else:
   text+='按你能稳定打出的Carry选杆。'
  return {'text':text+'现场再核对球位、风和落地后的滚动空间。','option':option}

@@ -13,6 +13,19 @@ class PhoenixMapTests(unittest.TestCase):
   for h in c['holes']:
    for name,p in h['simulation_positions'].items():self.assertEqual(gps_matches(c,p),[h['number']],(h['number'],name))
   self.assertEqual(c['holes'][0]['source_hole_id'],475519);self.assertEqual(c['holes'][16]['source_hole_id'],475531)
+ def test_third_hole_preview_has_simulation_only_stakes(self):
+  snapshot=course()
+  self.assertNotIn('test_stakes',snapshot['holes'][2])
+  self.assertNotIn('test_stakes',preview(2,snapshot))
+  data=preview(3,snapshot)
+  self.assertEqual([group['kind'] for group in data['test_stakes']],['white','white','yellow','red'])
+  self.assertIn('开球',data['test_stakes'][0]['label'])
+  self.assertIn('第二杆右侧',data['test_stakes'][1]['label'])
+  west,south,east,north=data['bounds']
+  for group in data['test_stakes']:
+   self.assertGreaterEqual(len(group['points']),2)
+   for point in group['points']:
+    self.assertTrue(west<point['longitude']<east and south<point['latitude']<north)
  def test_widths_derived_not_old_synthetic_values(self):
   h=course()['holes'][0];z=next(z for z in h['tee_strategy']['landing_zones'] if z['start_yards']==220);self.assertEqual(z['width_yards'],44.3);self.assertTrue(any(x['kind']=='bunker' for x in z['hazards']));self.assertTrue(z['simulation_only']);self.assertEqual(h['display_paths'][0]['points'][0]['latitude'],22.700623448744366)
  def test_generated_asset_reproduces_source(self):

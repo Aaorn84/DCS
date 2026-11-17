@@ -13,9 +13,9 @@ def valid_ring(ring):
 
 
 def mapped_polygons(hole, simulation):
-    polygons = {kind: {} for kind in ('fairway', 'bunker', 'water', 'ob')}
+    polygons = {kind: {} for kind in ('fairway', 'green', 'bunker', 'water', 'ob')}
     if simulation:
-        kinds = {'FairwayTrace': 'fairway', 'BunkerTrace': 'bunker', 'WaterTrace': 'water'}
+        kinds = {'FairwayTrace': 'fairway', 'GreenTrace': 'green', 'BunkerTrace': 'bunker', 'WaterTrace': 'water'}
         for path in hole.get('display_paths', []):
             kind = kinds.get(path['kind'])
             if kind and len(path['points']) >= 3:
@@ -56,11 +56,16 @@ def corridor_hits(rings, width, end):
     return next(corridor_edges(rings, width, end), None) is not None
 
 
-def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False):
+ROLL_IN_CLUBS=('three_wood','five_wood','hybrid','long_iron','iron3','iron4')
+MAX_ROLL_IN_YARDS=10
+
+
+def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False, surface='fairway',
+                roll_in=False):
     course = state['evidence'][analysis['course_evidence']]['data']
     hole = next(h for h in course['holes'] if h['number'] == analysis['hole'])
     polygons = mapped_polygons(hole, course.get('reference_simulation') is True)
-    if not polygons['fairway']:
+    if not polygons[surface]:
         return []
     origin = origin or fact_value(state, 'context.device_position')
     green = next(o for o in hole['objects'] if o['kind'] == 'green_center')
@@ -78,9 +83,10 @@ def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False):
     def project(rings):
         return [[xy(*vertex) for vertex in ring] for ring in rings]
 
-    fairways = [(rings, project(rings)) for rings in polygons['fairway'].values()]
+    landing_areas = [(rings, project(rings)) for rings in polygons[surface].values()]
     obstacle_rings = [rings for kind in ('bunker', 'water', 'ob') for rings in polygons[kind].values()]
     obstacles = [project(rings) for rings in obstacle_rings]
+    run_in_surfaces = list(polygons['fairway'].values()) + list(polygons['green'].values())
     at_tee = point(0, 0)
     if any(polygon_contains(rings, at_tee) for rings in obstacle_rings):
         return []
@@ -96,6 +102,8 @@ def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False):
     # A planning band around a single reported carry, with no estimated roll.
     targets = []
     for key, club in clubs:
+        if roll_in and key not in ROLL_IN_CLUBS:
+            continue
         carry_yards = club['carry_yards']
         low_yards, high_yards = carry_yards-5, carry_yards+5
         carry, low, high = (yards*.9144 for yards in (carry_yards, low_yards, high_yards))
@@ -110,23 +118,43 @@ def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False):
                 return [[(x*north-y*east, x*east+y*north) for x, y in ring] for ring in rings]
 
             midpoint = point(east*carry, north*carry)
-            # A fairway edge inside the band would interrupt the landing corridor.
-            in_fairway = any(polygon_contains(rings, midpoint) and not corridor_hits(
-                [[(x, y-low) for x, y in ring] for ring in aim_rings(projected)],
-                margin, high-low) for rings, projected in fairways)
-            if not in_fairway or any(polygon_contains(rings, midpoint) for rings in obstacle_rings):
+            end=high
+            roll=0
+            if roll_in:
+                # Test the nominal first bounce and the mapped ground run to the green.
+                if any(polygon_contains(rings,midpoint) for rings,_ in landing_areas):
+                    continue
+                for yards in range(MAX_ROLL_IN_YARDS+1):
+                    depth=carry+yards*.9144
+                    sample=point(east*depth,north*depth)
+                    if not any(polygon_contains(rings,sample) for rings in run_in_surfaces):
+                        break
+                    if yards and any(polygon_contains(rings,sample) for rings,_ in landing_areas):
+                        roll=yards
+                        end=depth
+                        break
+                if not roll:
+                    continue
+            else:
+                # A surface edge inside the band would interrupt the landing corridor.
+                in_area=any(polygon_contains(rings,midpoint) and not corridor_hits(
+                    [[(x,y-low) for x,y in ring] for ring in aim_rings(projected)],
+                    margin,high-low) for rings,projected in landing_areas)
+                if not in_area:
+                    continue
+            if any(polygon_contains(rings,midpoint) for rings in obstacle_rings):
                 continue
-            crossing = max((far for rings in obstacles
-                            for far in corridor_edges(aim_rings(rings), margin, high)), default=None)
-            if crossing is not None and (not allow_crossing or crossing+margin >= low):
+            crossing=max((far for rings in obstacles
+                          for far in corridor_edges(aim_rings(rings),margin,end)),default=None)
+            if crossing is not None and (not allow_crossing or crossing+margin>=low):
                 continue
             if not runs or runs[-1][-1][0] != offset-1:
                 runs.append([])
-            runs[-1].append((offset, east, north, crossing))
+            runs[-1].append((offset, east, north, crossing, roll))
         if not runs:
             continue
         run = max(runs, key=lambda row: (len(row), -abs(row[len(row)//2][0])))
-        offset, east, north, crossing = run[len(run)//2]
+        offset, east, north, crossing, roll = run[len(run)//2]
         width = 2*low*math.sin(math.radians((len(run)-1)/2)) + 2*margin
         nearby = []
         for index, (distance, x, y) in enumerate(bunkers):
@@ -143,5 +171,54 @@ def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False):
                              distance_m=distance)
         targets.append(dict(club_key=key, club=club['label'], carry_yards=carry_yards,
                             low_yards=low_yards, high_yards=high_yards, width_m=width, offset=offset, reference=reference,
-                            crossing_m=crossing, aim_point=point(east*carry, north*carry)))
+                            crossing_m=crossing, aim_point=point(east*carry, north*carry),
+                            **({'roll_yards':roll} if roll else {})))
     return targets
+
+
+def landing_space(hole, simulation, origin, target, surface, roll_yards=0):
+    """Measure cross-track room and nearby mapped hazard edges at a candidate landing."""
+    polygons=mapped_polygons(hole,simulation)
+    scale=111195*math.cos(math.radians(origin['latitude']))
+    dx=(target['longitude']-origin['longitude'])*scale
+    dy=(target['latitude']-origin['latitude'])*111195
+    distance=math.hypot(dx,dy)
+    if not distance or not polygons[surface]:
+        return {'width_m':0,'depth_m':0,'hazards':[]}
+    east,north=dx/distance,dy/distance
+    entry=roll_yards*.9144
+
+    def inside(lateral,along):
+        point=dict(longitude=target['longitude']+(east*along+north*lateral)/scale,
+                   latitude=target['latitude']+(north*along-east*lateral)/111195,
+                   accuracy_m=0)
+        return any(polygon_contains(rings,point) for rings in polygons[surface].values())
+
+    def extent(across,sign):
+        for step in range(1,101):
+            if not inside(sign*step if across else 0,entry if across else entry+sign*step):
+                return step-1
+        return 100
+
+    width=extent(True,-1)+extent(True,1) if inside(0,entry) else 0
+    depth=extent(False,-1)+extent(False,1) if width else 0
+    hazards=[]
+    for kind in ('bunker','water','ob'):
+        for rings in polygons[kind].values():
+            nearest=None
+            for ring in rings:
+                points=[((lon-target['longitude'])*scale,(lat-target['latitude'])*111195)
+                        for lon,lat in ring]
+                for (x,y),(u,v) in edges(points):
+                    dx,dy=u-x,v-y
+                    length=dx*dx+dy*dy
+                    fraction=max(0,min(1,-(x*dx+y*dy)/length)) if length else 0
+                    x,y=x+fraction*dx,y+fraction*dy
+                    candidate=(math.hypot(x,y),x*north-y*east)
+                    if nearest is None or candidate[0]<nearest[0]:
+                        nearest=candidate
+            if nearest and nearest[0]<=35*.9144:
+                distance,lateral=nearest
+                side='右侧' if lateral>2 else '左侧' if lateral< -2 else '沿线'
+                hazards.append(dict(kind=kind,side=side,distance_m=distance))
+    return dict(width_m=width,depth_m=depth,hazards=hazards)

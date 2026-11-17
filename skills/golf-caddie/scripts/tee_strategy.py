@@ -5,6 +5,22 @@ from shot_evidence import haversine
 from gps_transition import inside,POLICY
 from round_state import fact_value
 SIDES={'left':'左侧','right':'右侧','center':'中间','center-left':'中左侧','center-right':'中右侧'}
+PAR_FIVE_BAG=(('three_wood','3号木'),('five_wood','5号木'),('hybrid','铁木杆'),
+              ('iron3','3号铁'),('iron4','4号铁'))
+
+def reported_carry_clubs(profile):
+    clubs={}
+    for key,label in [('driver','一号木'),('three_wood','3号木'),('hybrid','铁木杆'),('long_iron','长铁杆'),('seven','7号铁'),
+                      ('five_wood','5号木'),('iron3','3号铁'),('iron4','4号铁')]:
+        v=profile.get(key,{}).get('value',{})
+        if key=='hybrid' and isinstance(v,dict) and v.get('club_name'):
+            label=v['club_name']
+        if key=='long_iron' and isinstance(v,dict) and v.get('club_name') in [str(n)+suffix for n in range(2,7) for suffix in ('铁','号铁')]:label=v['club_name']
+        if isinstance(v,dict) and v.get('distance_type')=='carry' and v.get('units') in ('码','米') and type(v.get('distance')) in (int,float) and 0<v['distance']<=400:
+            clubs[key]={'label':label,'carry_yards':v['distance']/(.9144 if v['units']=='米' else 1),'source':'user_report','not_calibrated':True}
+    return clubs
+
+
 def analyze(s,now):
     j=s.get('journey',{});pos=s['facts'].get('context.device_position',{})
     if not pos.get('valid'):return None
@@ -20,14 +36,7 @@ def analyze(s,now):
     green=[o for o in hole['objects'] if o['kind']=='green_center']
     if len(green)!=1:return None
     yards=haversine(gps,green[0])/.9144
-    profile=j.get('profile',{});clubs={}
-    for key,label in [('driver','一号木'),('three_wood','3号木'),('hybrid','铁木杆'),('long_iron','长铁杆'),('seven','7号铁')]:
-        v=profile.get(key,{}).get('value',{})
-        if key=='hybrid' and isinstance(v,dict) and v.get('club_name'):
-            label=v['club_name']
-        if key=='long_iron' and isinstance(v,dict) and v.get('club_name') in [str(n)+suffix for n in range(2,7) for suffix in ('铁','号铁')]:label=v['club_name']
-        if isinstance(v,dict) and v.get('distance_type')=='carry' and v.get('units') in ('码','米') and type(v.get('distance')) in (int,float) and 0<v['distance']<=400:
-            clubs[key]={'label':label,'carry_yards':v['distance']/(.9144 if v['units']=='米' else 1),'source':'user_report','not_calibrated':True}
+    profile=j.get('profile',{});clubs=reported_carry_clubs(profile)
     data=hole.get('tee_strategy',{});zones=data.get('landing_zones',[]) if data.get('verified') is True and data.get('source') else []
     zones=[z for z in zones if isinstance(z,dict) and isinstance(z.get('id'),str)
            and all(type(z.get(k)) in (int,float) and 0<z[k]<1000 for k in ('start_yards','end_yards','width_yards'))
@@ -136,7 +145,7 @@ def arrival(j,a,timestamp):
     return tr['fixes']>=POLICY['min_fixes'] and timestamp-tr['since']>=POLICY['dwell_seconds']
 
 
-def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=None, *, mapped_fallback=False, par_five_plan=False, carry_crossing=False):
+def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=None, *, mapped_fallback=False, par_five_plan=False, carry_crossing=False, compare_par_five=False, ask_fairway_carry=False, allow_roll_in=False, compare_safety=False):
     offer = proposal(analysis, intent, unit, unavailable, selected)
     plan_three = par_five_plan and analysis['par'] == 5
     if not mapped_fallback or (offer['options'] and not plan_three) or analysis['par'] not in (4, 5):
@@ -189,7 +198,141 @@ def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=N
     if choice.get('layup'):
         option['layup'] = dict(aim_point=layup['aim_point'], carry_yards=layup['carry_yards'],
                                leave_yards=choice['leave_yards'])
+    if plan_three and compare_par_five:
+        return compare_par_routes(state, analysis, targets, text, option, unit,
+                                  ask_fairway_carry=ask_fairway_carry and 'par_five_fairway' not in unavailable,
+                                  allow_roll_in=allow_roll_in,compare_safety=compare_safety)
     return {'text': text, 'continuation_text': text, 'options': [option]}
+
+
+def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit, *, ask_fairway_carry=False, allow_roll_in=False, compare_safety=False):
+    from tee_geometry import MAX_ROLL_IN_YARDS,ROLL_IN_CLUBS,tee_targets
+    course=state['evidence'][analysis['course_evidence']]['data']
+    hole=next(h for h in course['holes'] if h['number']==analysis['hole'])
+    card=hole.get('published_yardage')
+    scale=.9144 if unit=='米' else 1
+
+    def distance(yards):
+        return f'{round(yards*scale)}{unit}'
+
+    # Driver carry is reported from the tee. Do not reuse it as a fairway carry.
+    clubs=[(key,club) for key,club in analysis['clubs'].items() if key!='driver']
+    budget=(max(tee['carry_yards'] for tee in targets)+max(c['carry_yards'] for _,c in clubs)) if clubs else None
+    roll_budget=None
+    if allow_roll_in:
+        roll_budget=max((tee['carry_yards']+club['carry_yards']+MAX_ROLL_IN_YARDS
+                         for tee in targets for key,club in clubs if key in ROLL_IN_CLUBS),default=None)
+    attack=None
+    if budget is None:
+        reason='还缺可用于第二杆的球道杆距。'
+    elif card and max(budget,roll_budget or 0)<card:
+        reason=f'候选开球杆与球道最长杆的已知Carry合计最多{distance(budget)}，低于球洞公布长度{distance(card)}。按现有杆距先走三上。'
+    else:
+        for tee in targets:
+            green_targets=tee_targets(state,analysis,clubs,origin=tee['aim_point'],
+                                      allow_crossing=True,surface='green')
+            if allow_roll_in:
+                eligible=[(key,club) for key,club in clubs
+                          if not card or tee['carry_yards']+club['carry_yards']+MAX_ROLL_IN_YARDS>=card]
+                green_targets+=tee_targets(state,analysis,eligible,origin=tee['aim_point'],
+                                           allow_crossing=True,surface='green',roll_in=True)
+            for green in green_targets:
+                allowance=MAX_ROLL_IN_YARDS if green['club_key'] in ROLL_IN_CLUBS else 0
+                if allow_roll_in and card and tee['carry_yards']+green['carry_yards']+allowance<card:
+                    continue
+                rank=(() if not allow_roll_in else (not green.get('roll_yards'),))+(sum(shot['crossing_m'] is None for shot in (tee,green)),
+                      min(tee['width_m'],green['width_m']),green['width_m'])
+                if attack is None or rank>attack[0]:
+                    attack=(rank,tee,green)
+        reason='从候选开球落点出发，已知球道杆距还没有匹配到兼顾过障碍和停球空间的果岭落区。'
+    if attack is None:
+        if ask_fairway_carry and not any(key in ('three_wood','five_wood','hybrid','iron3','iron4','long_iron') for key,_ in clubs):
+            question='你在球道上能稳定用的最长一支杆是什么，Carry大概多少？例如「3号木235码」或「4号铁木杆200码」。不知道可以跳过。'
+            if budget is not None:
+                tee=max(targets,key=lambda shot:shot['carry_yards'])
+                _,fairway=max(clubs,key=lambda entry:entry[1]['carry_yards'])
+                question=(f"目前只有{tee['club']}和{fairway['label']}可用于这组估算，Carry合计{distance(budget)}。"
+                          +question)
+            return {'text':layup_text,'continuation_text':layup_text,'options':[layup_option],
+                    'missing_club':'par_five_fairway','question':question}
+        text=layup_text+'两上评估：'+reason
+        return {'text':text,'continuation_text':text,'options':[layup_option]}
+
+    _,tee,green=attack
+    target=aiming_text(tee,unit)
+    offset=green['offset']
+    aim=f"从预计落点朝果岭参考方向{'右' if offset>0 else '左'}偏约{abs(offset)}度" if offset else '从预计落点瞄果岭参考点'
+    text=(f"两上方案：{tee['club']}开球，瞄{target}，预计Carry约{distance(tee['carry_yards'])}。"
+          +crossing_text(tee,unit)
+          +f"第二杆可考虑{green['club']}，{aim}，目标Carry约{distance(green['carry_yards'])}。"
+          +roll_in_text(green,unit)
+          +crossing_text(green,unit)
+          +'开球落定后，再按球位和滚动空间确认是否攻果岭。')
+    if compare_safety:
+        space=green_landing_space(state,analysis,tee['aim_point'],green)
+        text+=space_text(space,'果岭入口' if green.get('roll_yards') else '果岭落区',unit)
+        if layup_option.get('layup') and (space['width_m']<12*.9144 or space['depth_m']<12*.9144
+                or any(h['kind'] in ('water','ob') and h['distance_m']<=15*.9144 for h in space['hazards'])):
+            text+='如果更重视落点容错，优先看三上。'
+    attack_option=dict(layup_option,id=f"geometry:{tee['club_key']}:{tee['offset']}:two",
+                       club=tee['club'],target=target,carry_yards=tee['carry_yards'],
+                       aim_point=tee['aim_point'],par_plan='two',
+                       approach=dict(club=green['club'],carry_yards=green['carry_yards'],aim_point=green['aim_point'],
+                                     **({'roll_yards':green['roll_yards']} if green.get('roll_yards') else {})))
+    attack_option.pop('layup',None)
+    if not layup_option.get('layup'):
+        return {'text':text,'continuation_text':text,'options':[attack_option]}
+    layup_option=dict(layup_option,par_plan='three')
+    text+='\n三上方案：'+layup_text
+    return {'text':text,'continuation_text':text,'options':[attack_option,layup_option]}
+
+
+def actual_position_roll_in(state, now, unit, *, compare_safety=False, direct=False):
+    from lie_position import fresh_position
+    from tee_geometry import tee_targets
+    origin=fresh_position(state,now)
+    if not origin:
+        return None
+    analysis=dict(course_evidence=fact_value(state,'context.course_snapshot'),
+                  hole=fact_value(state,'context.active_hole'))
+    profile=state['journey'].get('profile',{})
+    clubs=reported_carry_clubs(profile)
+    from iron_estimates import iron_table
+    from club_selection import same_label
+    for number,estimate in iron_table(profile).items():
+        label=f'{number}号铁'
+        if not any(same_label(label,club['label']) for club in clubs.values()):
+            clubs[f'estimated_iron_{number}']={
+                'label':label,'carry_yards':estimate['carry_yards'],
+                'source':estimate['source']}
+    candidates=tee_targets(state,analysis,list(clubs.items()),origin=origin['value'],
+                           allow_crossing=True,surface='green',roll_in=not direct)
+    if direct:
+        candidates=[candidate for candidate in candidates if candidate['club_key']!='driver']
+    if not candidates:
+        return None
+    target=min(candidates,key=lambda row:(row['crossing_m'] is not None,row.get('roll_yards',0),-row['width_m']))
+    scale=.9144 if unit=='米' else 1
+    offset=target['offset']
+    aim=f"朝果岭参考方向{'右' if offset>0 else '左'}偏约{abs(offset)}度" if offset else '朝果岭参考点'
+    text=(f"另一条线可考虑{target['club']}，{aim}，Carry约{round(target['carry_yards']*scale)}{unit}。"
+          +roll_in_text(target,unit)+crossing_text(target,unit))
+    if str(target['club_key']).startswith('estimated_iron_'):
+        text+='这支铁杆的Carry按7号铁杆距暂估，现场按你的实际杆距确认。'
+    if not compare_safety:
+        return {'text':text}
+    space=green_landing_space(state,analysis,origin['value'],target)
+    text+=space_text(space,'果岭入口' if target.get('roll_yards') else '果岭落区',unit)
+    return {'text':text,'tight_green':space['width_m']<12*.9144 or space['depth_m']<12*.9144,
+            'near_penalty':any(h['kind'] in ('water','ob') and h['distance_m']<=15*.9144
+                               for h in space['hazards'])}
+
+
+def roll_in_text(target,unit):
+    if not target.get('roll_yards'):
+        return ''
+    roll=math.ceil(target['roll_yards']*(.9144 if unit=='米' else 1))
+    return f'这条路线要靠球落地后再滚约{roll}{unit}上果岭，现场确认前沿通畅、地面能滚再用。'
 
 
 def aiming_text(choice, unit):
@@ -246,15 +389,77 @@ def par_five_routes(state, analysis, targets):
     return routes
 
 
+def actual_position_layup(state, now, *, compare_safety=False):
+    from lie_position import fresh_position
+    from round_state import fact_value
+    origin=fresh_position(state,now)
+    eid=fact_value(state,'context.course_snapshot')
+    number=fact_value(state,'context.active_hole')
+    course=state.get('evidence',{}).get(eid,{}).get('data',{})
+    hole=next((h for h in course.get('holes',[]) if h['number']==number),None)
+    if not origin or not hole or hole['par']!=5:
+        return ''
+    profile=state['journey'].get('profile',{})
+    clubs={key:club for key,club in reported_carry_clubs(profile).items() if key!='driver'}
+    if not clubs:
+        return ''
+    analysis=dict(course_evidence=eid,hole=number,clubs=clubs)
+    routes=par_five_routes(state,analysis,[dict(aim_point=origin['value'],crossing_m=None)])
+    if not routes:
+        return ''
+    if compare_safety:
+        from tee_geometry import landing_space
+        for row in routes:
+            row['space']=landing_space(hole,course.get('reference_simulation') is True,origin['value'],
+                                       row['layup']['aim_point'],'fairway')
+        route=min(routes,key=lambda row:(row['crossings'],
+                   sum(h['kind'] in ('water','ob') for h in row['space']['hazards']),
+                   -row['space']['width_m'],row['leave_error']))
+    else:
+        route=min(routes,key=lambda row:(row['leave_error'],row['crossings'],-row['layup']['width_m']))
+    unit=profile.get('units',{}).get('value','码')
+    scale=.9144 if unit=='米' else 1
+    layup=route['layup']
+    return (f"从现在的球位，可瞄{aiming_text(layup,unit)}，第二杆目标Carry约"
+            f"{round(layup['carry_yards']*scale/5)*5}{unit}，预计第三杆到果岭参考点约"
+            f"{round(route['leave_yards']*scale/5)*5}{unit}。"+crossing_text(layup,unit)
+            +(space_text(route['space'],'球道落区',unit) if compare_safety else '')
+            +"按现场球位和滚动空间选杆。")
+
+
+def green_landing_space(state,analysis,origin,target):
+    from tee_geometry import landing_space
+    course=state['evidence'][analysis['course_evidence']]['data']
+    hole=next(h for h in course['holes'] if h['number']==analysis['hole'])
+    return landing_space(hole,course.get('reference_simulation') is True,origin,
+                         target['aim_point'],'green',target.get('roll_yards',0))
+
+
+def space_text(space, label, unit):
+    scale=1 if unit=='米' else .9144
+    width=round(space['width_m']/scale)
+    depth=round(space['depth_m']/scale)
+    text=f'{label}沿这条线横向约{width}{unit}' if width else ''
+    if text and label.startswith('果岭') and depth:
+        text+=f'、纵深约{depth}{unit}'
+    if text:
+        text+='。'
+    labels={'water':'水障碍','bunker':'沙坑','ob':'已确认界外区'}
+    hazards=list(dict.fromkeys(h['side']+labels[h['kind']] for h in space['hazards']))
+    if hazards:
+        text+='落点附近有'+'、'.join(hazards)+'。'
+    return text
+
+
 def same_target(previous, updated):
     if not updated or any(previous.get(key) != updated.get(key)
                           for key in ('id', 'club', 'target', 'course_evidence', 'hole')):
         return False
-    before_layup, after_layup = previous.get('layup'), updated.get('layup')
-    if before_layup or after_layup:
-        if (not before_layup or not after_layup
-                or before_layup['carry_yards'] != after_layup['carry_yards']
-                or haversine(before_layup['aim_point'],after_layup['aim_point']) > 3):
+    for field in ('layup','approach'):
+        before,after=previous.get(field),updated.get(field)
+        if (before or after) and (not before or not after or before.get('club')!=after.get('club')
+                or before['carry_yards']!=after['carry_yards'] or before.get('roll_yards')!=after.get('roll_yards')
+                or haversine(before['aim_point'],after['aim_point'])>3):
             return False
     if 'aim_point' in previous or 'aim_point' in updated:
         return ('aim_point' in previous and 'aim_point' in updated

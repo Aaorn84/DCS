@@ -113,16 +113,40 @@ def reduce_event(s, p, seq, now):
 
     def finish_draft():
         d = session['draft']
-        if 'putts' not in d:
-            return ask('putts', '这一洞几推？')
+        if 'putts' not in d or (p.get('_ball_rules_v107') and d.get('putts') is None and not d.get('putts_explicit_unknown')):
+            return ask('putts', '这一洞几推？不清楚可以跳过。' if p.get('_ball_rules_v107') else '这一洞几推？')
         ce = active_evidence(session['course_evidence'])
         par = next((h['par'] for h in ce['data']['holes'] if h['number'] == d['hole']), None) if ce else None
+        if p.get('_ball_outcome_v105') and d.get('penalties') is None and fact_value(s, f"holes.{d['hole']}.penalties") is None:
+            from ball_outcome import reported_penalties
+            reported = reported_penalties(s, d['hole'])
+            if reported:
+                d['penalties'] = reported
         if p.get('_zero_penalties_v80') and d.get('penalties') is None:
             d['penalties'] = (fact_value(s,f"holes.{d['hole']}.penalties") or 0) if p.get('_audit_v87') else 0
         if par is not None and d['total'] - par >= 2 and 'penalties' not in d:
             return ask('penalties', '这一洞有OB、下水或其他罚杆吗？告诉我罚杆数，不清楚也可以跳过。')
         if sum(d.get(k) or 0 for k in ('putts', 'penalties')) > d['total']:
-            return ask('putts', '推杆和罚杆合计超过了总杆。这洞实际几推？')
+            if p.get('_ball_outcome_v105') and not d.get('penalties_explicit') and (d.get('penalties') or 0)>d['total']:
+                from ball_outcome import reported_penalties
+                reported=reported_penalties(s,d['hole'])
+                if reported<=d['total']:
+                    d['penalties']=reported
+            if sum(d.get(k) or 0 for k in ('putts','penalties'))>d['total']:
+                if (d.get('penalties') or 0)>d['total']:
+                    return ask('penalties','记录的罚杆超过了总杆。这一洞实际罚了几杆？')
+                return ask('putts', '推杆和罚杆合计超过了总杆。这洞实际几推？')
+        if p.get('_ball_rules_v107'):
+            from ball_rules import rows as ball_rows
+            from round_state import canonical
+            from shot_links import scope
+            key=canonical((scope(s)[0],scope(s)[1],d['hole']))
+            flow=s.get('journey',{}).get('ball_rules',{}).get(key)
+            if flow:
+                physical=len([row for row in ball_rows(flow) if row.get('club')!='推杆'])
+                minimum=physical+(d.get('penalties') or 0)+(d.get('putts') or 0)
+                if minimum>d['total']:
+                    return ask('total',f"击球、推杆和罚杆合计至少{minimum}杆，请核对这一洞总杆数；也可更正之前的事故或用杆记录。")
         close_question()
         ops = [dict(path=f"holes.{d['hole']}.{k}", value=d.get(k), status='unknown' if d.get(k) is None else 'confirmed') for k in ('total', 'putts', 'penalties')]
         patch_id = event + '-score'
@@ -308,22 +332,35 @@ def reduce_event(s, p, seq, now):
                     and question.get('allow_unknown_putts')):
                 strokes = question.get('strokes_to_green') if p.get('_infer_multi_putts_v79') else None
                 known_penalties = fact_value(s,f'holes.{hole}.penalties')
+                if p.get('_ball_outcome_v105') and known_penalties is None:
+                    from ball_outcome import reported_penalties
+                    known_penalties = reported_penalties(s, hole)
                 if strokes and known_penalties in (None,0) and (penalties is None or count(penalties)==0) and d['total'] >= strokes:
                     d['putts'] = d['total'] - strokes
                     d['inferred_putts'] = True
                 elif (p.get('_infer_putts_v74') and question.get('one_to_green')
                         and d['total'] == 3 and (penalties is None or count(penalties)==0)
-                        and fact_value(s,f'holes.{hole}.penalties') in (None,0)):
+                        and known_penalties in (None,0)):
                     d['putts'] = 2
                     d['inferred_putts'] = True
                 else:
                     d['putts'] = None
         if penalties is not None:
             d['penalties'] = count(penalties)
+            d['penalties_explicit'] = True
         close_question()
         session['draft'], session['pending_patch'] = d, None
         session['score_target'] = None
         return finish_draft()
+    if p.get('_ball_rules_v107') and (session.get('draft') or {}).get('awaiting')=='total':
+        total_match=re.fullmatch(N+r'(?:杆)?',clean)
+        if total_match:
+            value=count(total_match[1])
+            require(1<=value<=30,'invalid total')
+            close_question()
+            session['draft']['total']=value
+            session['draft']['evidence_ids'].append(eid)
+            return finish_draft()
     if session['draft'] and session['draft'].get('awaiting') in ('putts', 'penalties'):
         d = session['draft']; field = d['awaiting']
         value_match = re.fullmatch(N + (r'(?:推)?' if field == 'putts' else r'(?:罚|罚杆)?'), clean)
@@ -337,6 +374,8 @@ def reduce_event(s, p, seq, now):
             return say('这一项没有听清，也可以说“不清楚”。')
         require(value is None or 0 <= value <= 30, 'invalid count')
         close_question(); d[field] = value; d['evidence_ids'].append(eid)
+        if field=='penalties':d['penalties_explicit']=True
+        if field=='putts' and value is None:d['putts_explicit_unknown']=True
         session['pending_patch'] = None
         return finish_draft()
     result = attribute(text, s, question_id=p.get('question_id'), shot_id=p.get('shot_id'))

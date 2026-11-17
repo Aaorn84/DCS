@@ -43,12 +43,12 @@ def build_routes(s,a,now):
   routes.append({'kind':kind,'club_key':c['club_key'],'club':c['label'],'zone_id':c['zone_id'],'target':SIDES[c['zone']['preferred_side']], 'carry_yards':c['carry_yards'],'remaining_yards':projection['remaining_yards'],'remaining_basis':projection['basis'],'risk':risk})
  return routes
 
-def offer(s,p,a,routes,now):
+def offer(s,p,a,routes,now,*,brief=None):
  j=s['journey'];c=j['consultation'];c.pop('suggestion',None);c.pop('selected_club',None);c['phase']='tee_options'
  j.pop('distance_comparison_focus',None)
  j['tee_route_options']={'status':'awaiting_choice','routes':copy.deepcopy(routes),'scope':scope(s),'at':now}
  unit=j.get('profile',{}).get('units',{}).get('value','码');scale=.9144 if unit=='米' else 1
- lines=[]
+ lines=[brief] if brief else []
  for r in routes:
   name='保守' if r['kind']=='conservative' else '进取';remaining=round(r['remaining_yards']*scale/5)*5;carry=round(r['carry_yards']*scale)
   lines.append(f"{name}：{r['club']}约{carry}{unit}，瞄落区{r['target']}，预计下一杆约{remaining}{unit}；{r['risk']}。")
@@ -111,9 +111,14 @@ def reduce_journey(s,p,seq,now):
   from approach_dialogue import requested
   advice=isinstance(text,str) and (requested(text) or bool(re.search(r'有何建议|有什么建议|有啥建议|给点建议|推荐一下',text)))
   carry_reply=before.get('phase')=='tee_club' and not before.get('selected_club')
-  if p.get('type')=='message' and (advice or carry_reply) and c.get('phase')=='tee_commit' and not c.get('selected_club') and c.get('suggestion',{}).get('strategy')!='mapped_carry_candidate':
+  if p.get('type')=='message' and (advice or carry_reply) and c.get('phase')=='tee_commit' and not c.get('selected_club') and not any(option.get('strategy')=='mapped_carry_candidate' for option in (c.get('last_offer') or {}).get('options',[])) and c.get('suggestion',{}).get('strategy')!='mapped_carry_candidate':
    a=analyze(s,now);routes=build_routes(s,a,now)
-   if routes:result=offer(s,p,a,routes,now)
+   if routes:
+    brief=result.get('tee_brief_prefix')
+    if brief:
+     result=offer(s,p,a,routes,now,brief=brief)
+    else:
+     result=offer(s,p,a,routes,now)
   if not (j.get('consultation') or {}).get('phase','').startswith('tee_') or (j.get('consultation') or {}).get('selected_club'):
    if j.get('tee_route_options',{}).get('status')=='awaiting_choice':j['tee_route_options']['status']='superseded'
  s['journey'].setdefault('tee_options_receipts',{})[p['event_id']]=sha

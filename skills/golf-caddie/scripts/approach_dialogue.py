@@ -19,9 +19,18 @@ def prepare(s,c,now):
   inferred=infer(s,now)
   if inferred and (not c.get('lie_report') or c.get('lie_evidence',{}).get('source')=='gps_course_surface'):
    c['lie_report']=inferred['label'];c['lie_evidence']=inferred
+ report=s['journey'].get('reported_landing',{})
+ if report:
+  from shot_links import scope
+  from round_state import canonical
+  from shot_evidence import haversine
+  if (report.get('scope')==canonical(scope(s)) and 0<=now-report.get('at',0)<=600
+      and pos and report.get('position') and haversine(pos['value'],report['position'])<=5):
+   c['lie_report']=report['lie']
+   c['lie_evidence']={'label':report['lie'],'source':'user_report','event_id':report['event_id']}
  return pos
 
-def advise(s,c,now,*, practical_rough=False, confirm_landing=False, use_landing_depth=False, verified_lines=False, carry_crossing=False):
+def advise(s,c,now,*, practical_rough=False, confirm_landing=False, use_landing_depth=False, verified_lines=False, carry_crossing=False, verify_playability=False, allow_roll_in=False, compare_safety=False):
  calc=copy.deepcopy(c)
  if calc.get('ball_position_report')=='simulation_selected':calc['ball_position_report']='user_confirmed'
  from short_pin_distance import estimate
@@ -93,14 +102,38 @@ def advise(s,c,now,*, practical_rough=False, confirm_landing=False, use_landing_
  if carry_crossing and calc.get('ball_position_report')=='user_confirmed':
   from hazard_route import green_crossing_advice
   aimed=estimate(s,now,short_game_only=False,include_aim=True) if pin else None
-  crossing=green_crossing_advice(s,now,target=(aimed or {}).get('aim'),lie=c.get('lie_report'))
+  crossing=green_crossing_advice(s,now,target=(aimed or {}).get('aim'),lie=c.get('lie_report'),verify_playability=verify_playability,allow_roll_in=allow_roll_in,compare_safety=compare_safety)
+  par_five_layup=''
+  if compare_safety and c.get('lie_report')=='球道' and out.get('distance_m',0)>50*.9144:
+   from tee_strategy import actual_position_layup,actual_position_roll_in
+   par_five_layup=actual_position_layup(s,now,compare_safety=True)
+   if par_five_layup and not (crossing and (crossing.get('attack_candidate') or crossing.get('option'))):
+    unit=s['journey'].get('profile',{}).get('units',{}).get('value','码')
+    direct=actual_position_roll_in(s,now,unit,compare_safety=True,direct=True)
+    if direct:
+     crossing={**direct,'text':direct['text'].removeprefix('另一条线'),'attack_candidate':True}
   if crossing:
    from short_pin_distance import pin_distance_wording
    unit=s['journey'].get('profile',{}).get('units',{}).get('value','码')
    prefix=pin_distance_wording(pin,unit) if pin else text.split('。',1)[0]
    text=prefix+'。'+crossing['text']
+   if par_five_layup and (crossing.get('attack_candidate') or crossing.get('option')):
+    out['route_choices']={'attack':crossing['text'],'layup':par_five_layup}
+    text=prefix+'。两上候选：'+crossing['text']+'\n三上候选：'+par_five_layup
+    if crossing.get('tight_green') or crossing.get('near_penalty'):
+     reason='果岭可用空间窄' if crossing.get('tight_green') else '攻果岭落点靠近水障碍或已确认界外区'
+     text+=f'这球位优先考虑三上，{reason}，球道过渡给落点偏差留的空间更多。'
+    text+='现场白桩和当天边界以球场标示为准。'
    out.update(mapped_crossing=True,crossing_option=crossing.get('option'),suggestion=None)
    out.pop('rough_landing_question',None)
+ from ball_outcome import reported_penalties
+ if reported_penalties(s,fact_value(s,'context.active_hole')):
+  text=text.replace('两上候选：','直接攻果岭候选：').replace('三上候选：','过渡后攻果岭候选：')
+  text=text.replace('第二杆目标Carry','这杆目标Carry').replace('预计第三杆','预计下一杆')
+  text=text.replace('优先考虑三上','优先考虑过渡后攻果岭')
+  if out.get('route_choices'):
+   out['route_choices']={k:v.replace('第二杆目标Carry','这杆目标Carry').replace('预计第三杆','预计下一杆')
+                         for k,v in out['route_choices'].items()}
  out['text']=text
  out['position_provenance']=c.get('ball_position_evidence',{})
  return out

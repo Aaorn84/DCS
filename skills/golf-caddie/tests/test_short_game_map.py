@@ -52,6 +52,26 @@ class MapFirstTests(unittest.TestCase):
   self.assertIn('目标Carry',out)
   self.assertIn('抛切',out)
 
+ def test_long_crossing_from_rough_is_not_a_pitch_recommendation(self):
+  from unittest.mock import patch
+  from approach_dialogue import advise
+  s=self.scene()
+  s['facts']['context.device_position']['value']['latitude']=-.0023
+  c=dict(lie_report='长草',ball_position_report='user_confirmed')
+  line=dict(front_m=250,back_m=269,target_m=258,accuracy_m=2,
+            hazards={'bunker':248.7,'water':None,'ob':None})
+  with patch('hazard_route.landing_line',return_value=line):
+   text=advise(s,c,time.time(),carry_crossing=True,verify_playability=True)['text']
+   self.assertIn('攻果岭线需要Carry约',text)
+   self.assertIn('先把球送回看得见、较宽的球道',text)
+   self.assertNotIn('抛切',text)
+   c['lie_report']='球道'
+   s['journey']['profile']={'driver':{'value':{'distance':278,'units':'码','distance_type':'carry'}}}
+   with patch('tee_strategy.actual_position_layup',return_value='第二杆过渡，预计第三杆约90码。'):
+    text=advise(s,c,time.time(),carry_crossing=True,verify_playability=True)['text']
+   self.assertIn('第三杆约90码',text)
+   self.assertNotIn('可考虑一号木',text)
+
  def test_hazard_behind_target_does_not_require_a_flyover(self):
   from hazard_route import green_crossing_advice
   s=self.scene()

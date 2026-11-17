@@ -8,7 +8,7 @@ function setup(fetcher){
  const nodes=new Map();let id=0;
  const element=()=>({value:'',textContent:'',hidden:false,setAttribute(){},children:[],append(x){this.children.push(x)},replaceChildren(){this.children=[]}});
  const get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id)};
- const context=vm.createContext({document:{getElementById:get,querySelectorAll:()=>[],createElement:element,createElementNS:element},fetch:fetcher,AbortController,setTimeout,clearTimeout,setInterval:()=>0,crypto:{randomUUID:()=>`op-${++id}`}});
+ const context=vm.createContext({document:{getElementById:get,querySelectorAll:()=>[],createElement:element,createElementNS:element,addEventListener(){}},window:{addEventListener(){}},cancelAnimationFrame(){},fetch:fetcher,AbortController,setTimeout,clearTimeout,setInterval:()=>0,crypto:{randomUUID:()=>`op-${++id}`}});
  vm.runInContext(script,context);vm.runInContext(`token='test';journey=${JSON.stringify(state)}`,context);
  return {context,get,submit:()=>get('form').onsubmit({preventDefault(){}}),value:expr=>vm.runInContext(expr,context)};
 }

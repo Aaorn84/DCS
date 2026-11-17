@@ -1,16 +1,19 @@
 <!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>电子球童 · 完整旅程</title>
 <style>*{box-sizing:border-box}body{margin:0;background:#f2f5ef;color:#213e30;font:15px/1.65 system-ui}main{max-width:1160px;margin:24px auto;padding:22px}h1{font-size:32px;margin:8px 0}h2{font-size:18px}small{color:#647c6e}.grid{display:grid;grid-template-columns:1.4fr 1fr;gap:22px}.card{background:white;padding:22px;border-radius:18px;margin:16px 0;box-shadow:0 4px 22px #1836240a}.notice{background:#fff3dc;padding:13px;border-radius:10px}button{font:inherit;border:0;border-radius:9px;padding:10px 15px;background:#216548;color:white;cursor:pointer;margin:4px 4px 4px 0}button.alt{background:#eaf1e9;color:#29513b}button:disabled{opacity:.45;cursor:wait}input{font:inherit;padding:11px;border:1px solid #cddbcf;border-radius:9px;max-width:100%;margin:5px 0}#utterance{width:100%}#chat{height:340px;overflow:auto;padding:8px 0}.msg{border-radius:10px;background:#eff5ee;padding:10px 13px;margin:8px 0;white-space:pre-wrap}.you{margin-left:35px;background:#e3eee5}.status{font-weight:600;color:#216548}pre{font:12px/1.6 monospace;white-space:pre-wrap;max-height:360px;overflow:auto;overflow-wrap:anywhere}.flow{color:#66816f;margin:14px 0}.badge{display:inline-block;padding:4px 10px;border-radius:20px;background:#e3eee4;margin:3px}#error{color:#9e3128;white-space:pre-wrap}@media(max-width:760px){.grid{grid-template-columns:1fr}main{padding:14px}h1{font-size:26px}}.record-scroll{overflow:auto}table{border-collapse:collapse;width:100%;text-align:left}th,td{padding:7px 10px;border-bottom:1px solid #e3ece4;white-space:nowrap}th{color:#476853;font-weight:600}.record-empty{color:#647c6e;margin:6px 0}</style>
 <main><small>可运行完整流程 · 前台体验原型</small><h1>先认识你，再陪你打一场。</h1><div class="flow">首次认识 → 相处约定 → 能力了解 → 赛前沟通 → 场中服务 → 赛后回顾 → 下一场</div>
-<div class="notice">可选择东莞凤凰山A+B蓝台的来源坐标演示，或合成测试球场；GPS由按钮或地图点选模拟。凤凰山路径按独立闭环作演示假设，尚未经实地、内环及精度验证，不能用于真实击球；公布长度与参考点距离分别显示。文字输入代表语音转写。完整流程为确定性原型，尚非通用聊天模型；不调用麦克风、后台定位或付费模型。可恢复的操作日志保存在本机，跨场个人档案另行征得同意。</div>
+<div class="notice">可选择东莞凤凰山A+B蓝台的来源坐标演示，或合成测试球场；GPS由按钮或地图点选模拟。凤凰山路径按独立闭环作演示假设，尚未经实地、内环及精度验证，不能用于真实击球；公布长度与参考点距离分别显示。文字输入代表语音转写。完整流程为确定性原型，尚非通用聊天模型；可手动授权麦克风测试击球声音识别，音频在浏览器本地处理；不调用后台定位或付费模型。可恢复的操作日志保存在本机，跨场个人档案另行征得同意。</div>
 <div class="grid"><section><div class="card"><h2>测试身份与恢复</h2><input id="email" placeholder="测试邮箱" aria-label="测试邮箱"><input id="password" type="password" placeholder="密码，至少10字符" aria-label="测试密码"><div><button id="register">注册并开始</button><button id="login" class="alt">登录并恢复</button><button id="guest" class="alt">新建临时测试身份</button><button id="logout" class="alt">退出</button></div><small>使用同一账号登录可恢复首次问答、当前球局和已授权档案；临时身份不便于刷新后恢复。</small><div id="error" role="alert"></div></div>
-<div class="card"><div id="stage" class="status">等待开始</div><div id="chat" aria-live="polite"></div><div id="choices"></div><div id="sendStatus" role="status" aria-live="polite" style="color:#9e3128"></div><button id="retryInline" class="alt" hidden>重试刚才的请求</button><form id="form"><input id="utterance" placeholder="回答当前问题，或按下方选项继续" aria-label="对话输入"><button>发送</button></form><div><button id="quiet" class="alt">安静</button><button id="resume" class="alt">继续</button><button id="next" class="alt">下一场</button></div></div></section>
-<aside><div class="card" id="mapCard" hidden><h2>凤凰山来源球道图</h2><div id="mapLabel" class="status"></div><svg id="courseMap" viewBox="0 0 500 500" role="img" aria-label="当前球洞来源路径与模拟位置" style="width:100%;background:#f1f4ec;border-radius:12px"></svg><div id="mapSelection" role="status">点击地图选择模拟位置，再确认提交。</div><button id="mapSubmit" class="alt">使用选点位置</button><button id="mapCorrect" class="alt">修正上一落点</button><button id="mapCancel" class="alt">取消选点</button><small>紫色：待提交选点。点选不生成击球。绿：球道／果岭 · 蓝：水体 · 浅黄：沙坑 · T：来源发球参考点 · G：果岭参考点 · 橙色：模拟设备。路径闭环只作演示；不是已核验测绘图。</small></div><div class="card"><h2>这一场</h2><div id="round">尚未开始</div><div id="score" class="status"></div><div id="holeNavigation" hidden><label for="simHole">模拟球洞</label> <select id="simHole" aria-label="模拟球洞"></select> <button id="switchHole" class="alt">切换到该洞发球台</button><small>仅切换测试场景，不代表上一洞完成，也不会自动记分。</small></div><button id="teegps" class="alt">模拟到发球台</button><button id="gps" class="alt">模拟球道位置</button><button id="simPause" class="alt">暂停模拟定位</button><button id="greengps" class="alt">模拟到果岭</button><button id="distance" class="alt">还有多少米</button><button id="finish" class="alt">结束球局</button><small>本页不读取手机GPS。选中模拟位置后每15秒更新同一位置，可暂停；切换按钮模拟移动，未生成击球。定位跳动过快时会被过滤。</small></div><div class="card" id="recordsCard" hidden><h2>本场记录</h2><h3>每洞成绩</h3><div id="scoreDraft" class="record-empty" hidden></div><p id="scoreEmpty" class="record-empty">还没有确认的成绩。</p><div class="record-scroll"><table id="scoreTable" aria-label="每洞成绩" hidden><thead><tr><th scope="col">球洞</th><th scope="col">总杆</th><th scope="col">推杆</th><th scope="col">罚杆</th></tr></thead><tbody id="scoreRows"></tbody></table></div><h3>实际用杆</h3><p id="clubEmpty" class="record-empty">还没有实际用杆记录。</p><div class="record-scroll"><table id="clubTable" aria-label="实际用杆" hidden><thead><tr><th scope="col">球洞</th><th scope="col">第几杆</th><th scope="col">球杆</th><th scope="col">水平总距离</th></tr></thead><tbody id="clubRows"></tbody></table></div></div><div class="card"><h2>我们逐渐形成的默契</h2><div id="memory"></div><h2>教练状态</h2><div id="coach"></div><button id="coachoff" class="alt">关闭教练</button><details><summary>已确认档案与历史</summary><pre id="details">开始后显示</pre></details><button id="snapshot" class="alt">读取保存状态</button><button id="replay" class="alt">核对事件重放</button><button id="retry" class="alt">重试原请求</button></div></aside></div></main>
+<div class="card"><div id="stage" class="status">等待开始</div><div id="chat" aria-live="polite"></div><div id="choices"></div><button id="audioToggle" class="alt">开启麦克风击球识别</button><button id="audioTest" class="alt">模拟击球声音</button><span id="audioStatus" role="status"></span><div id="sendStatus" role="status" aria-live="polite" style="color:#9e3128"></div><button id="retryInline" class="alt" hidden>重试刚才的请求</button><form id="form"><input id="utterance" placeholder="回答当前问题，或按下方选项继续" aria-label="对话输入"><button>发送</button></form><div><button id="quiet" class="alt">安静</button><button id="resume" class="alt">继续</button><button id="next" class="alt">下一场</button></div></div></section>
+<aside><div class="card" id="mapCard" hidden><h2>凤凰山来源球道图</h2><div id="mapLabel" class="status"></div><svg id="courseMap" viewBox="0 0 500 500" role="img" aria-label="当前球洞来源路径与模拟位置" style="width:100%;background:#f1f4ec;border-radius:12px"></svg><p id="testStakesNote" hidden><strong>第 3 洞模拟标桩</strong><br>两组白桩分别用于测试开球 OB 和第二杆右侧 OB，红桩和黄桩用于测试罚杆区。桩位为演示示意。白桩外或水里的模拟落点会先请你确认。可说「确认出界」「可能出界，先打暂定球」或「确认下水」。</p><div id="mapSelection" role="status">点击地图选择模拟位置，再确认提交。</div><button id="mapSubmit" class="alt">使用选点位置</button><button id="mapCorrect" class="alt">修正上一落点</button><button id="mapCancel" class="alt">取消选点</button><small>紫色：待提交选点。点选不生成击球。绿：球道／果岭 · 蓝：水体 · 浅黄：沙坑 · T：来源发球参考点 · G：果岭参考点 · 橙色：模拟设备。路径闭环只作演示；不是已核验测绘图。</small></div><div class="card"><h2>这一场</h2><div id="round">尚未开始</div><div id="score" class="status"></div><div id="holeNavigation" hidden><label for="simHole">模拟球洞</label> <select id="simHole" aria-label="模拟球洞"></select> <button id="switchHole" class="alt">切换到该洞发球台</button><small>仅切换测试场景，不代表上一洞完成，也不会自动记分。</small></div><button id="teegps" class="alt">模拟到发球台</button><button id="gps" class="alt">模拟球道位置</button><button id="simPause" class="alt">暂停模拟定位</button><button id="greengps" class="alt">模拟到果岭</button><button id="distance" class="alt">还有多少米</button><button id="finish" class="alt">结束球局</button><small>本页不读取手机GPS。选中模拟位置后每15秒更新同一位置，可暂停；切换按钮模拟移动，未生成击球。定位跳动过快时会被过滤。</small></div><div class="card" id="recordsCard" hidden><h2>本场记录</h2><h3>每洞成绩</h3><div id="scoreDraft" class="record-empty" hidden></div><p id="scoreEmpty" class="record-empty">还没有确认的成绩。</p><div class="record-scroll"><table id="scoreTable" aria-label="每洞成绩" hidden><thead><tr><th scope="col">球洞</th><th scope="col">总杆</th><th scope="col">推杆</th><th scope="col">罚杆</th></tr></thead><tbody id="scoreRows"></tbody></table></div><h3>实际用杆</h3><p id="clubEmpty" class="record-empty">还没有实际用杆记录。</p><div class="record-scroll"><table id="clubTable" aria-label="实际用杆" hidden><thead><tr><th scope="col">球洞</th><th scope="col">第几杆</th><th scope="col">球杆</th><th scope="col">水平总距离</th></tr></thead><tbody id="clubRows"></tbody></table></div></div><div class="card"><h2>我们逐渐形成的默契</h2><div id="memory"></div><h2>教练状态</h2><div id="coach"></div><button id="coachoff" class="alt">关闭教练</button><details><summary>已确认档案与历史</summary><pre id="details">开始后显示</pre></details><button id="snapshot" class="alt">读取保存状态</button><button id="replay" class="alt">核对事件重放</button><button id="retry" class="alt">重试原请求</button></div></aside></div></main>
 <script>
 let selectedMapPosition=null,acceptedMapPosition=null;
 let token='',busy=false,journey=null,pending=null,activeSimulation=null,lastSimulation=null,lastSimSpoke=false;const $=id=>document.getElementById(id);const names={memory:'首次认识 · 记忆选择',name:'相处方式 · 称呼',proactive:'相处方式 · 主动关照',shot_recording:'相处方式 · 击球记录',driver:'了解能力 · 一号木',driver_kind:'了解能力 · 距离类型',seven:'了解能力 · 7号铁',seven_kind:'了解能力 · 距离类型',miss:'了解能力 · 常见偏差',course:'赛前 · 球场',tee:'赛前 · 发球台',start_hole:'赛前 · 起始洞',goal:'赛前 · 今日目标',condition:'赛前 · 今日状态',ready:'准备出发',active:'场中 · 随时响应',finish_confirm:'结束确认',feeling:'赛后 · 先听感受',postgame:'赛后 · 由你选择',coach_consent:'教练 · 自愿开启',focus:'教练 · 一个重点',plan_confirm:'教练 · 确认计划',practice:'下一场 · 回看上次重点',idle:'伙伴陪伴'};
 function bubble(who,text){if(!text)return;let n=document.createElement('div');n.className='msg'+(who==='你'?' you':'');n.textContent=who+'：'+text;$('chat').append(n);$('chat').scrollTop=$('chat').scrollHeight}
 function stable(v){if(Array.isArray(v))return '['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';return JSON.stringify(v)}
-function buttonsLocked(){document.querySelectorAll('button').forEach(b=>b.disabled=busy)}
+function buttonsLocked(){
+ document.querySelectorAll('button').forEach(button=>button.disabled=busy);
+ $('mapCancel').disabled=busy||!selectedMapPosition;
+}
 function showFailure(e){if(e.status===409&&e.current)render(e.current);let message=e.status===409?'球局状态已更新，请核对当前问题后再发送；输入已保留。':pending&&!e.received?(pending.event?.type==='message'?'回答暂未收到回执，已保留。请点“重试刚才的请求”，不用重输。':'模拟定位暂未收到回执，请点“重试刚才的请求”恢复连接。'):(e.message||'请求未完成');$('error').textContent=message;$('sendStatus').textContent=message;$('retryInline').hidden=!pending}
 async function run(fn){if(busy){$('sendStatus').textContent='正在处理上一条请求，输入已保留，请稍后发送。';return}busy=true;buttonsLocked();$('error').textContent='';try{return await fn()}catch(e){showFailure(e)}finally{busy=false;buttonsLocked()}}
 async function api(path,data){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),12000);try{let r=await fetch(path,{method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{})},body:JSON.stringify(data)});let d=await r.json();if(!r.ok){let error=Error(d.error||'请求失败');error.received=true;error.status=r.status;error.current=d.current;throw error}return d}finally{clearTimeout(timeout)}}
@@ -37,10 +40,10 @@ function renderRoundRecords(j){
   appendRecordRow('clubRows',[hole,club.stroke_number==null?null:'第'+club.stroke_number+'杆',club.club,distance]);
  }
 }
-function render(j){journey=j;renderRoundRecords(j);renderHoleNavigation(j);$('stage').textContent=(names[j.stage]||j.stage)+' · 状态 '+j.version+(j.quiet?' · 已静默':'');$('round').textContent=j.round?`${j.round.id} · ${j.course_name||'合成球场'} · ${j.round.tee||'发球台未知'} · ${j.round.goal||''}`:'尚未开始';$('score').textContent=j.score_summary.confirmed_holes?`${j.score_summary.confirmed_holes}洞已确认，小计${j.score_summary.confirmed_subtotal}杆`:'未确认成绩不计入小计';$('memory').textContent='距离：'+(j.distance_unit||'码')+' · '+(j.memory_allowed?'已同意跨场记住确认资料':j.memory_allowed===false?'仅本场；下一场不沿用个人资料':'尚未确认记忆意愿');$('coach').textContent=j.coach.enabled?'已开启 · '+(j.coach.plan?.focus||'尚未接受重点'):'关闭 · 不追踪训练';$('details').textContent=JSON.stringify({runtime_protocol:j.runtime_protocol,profile:j.profile,history:j.history,coach:j.coach},null,2);renderMap(j);$('distance').textContent='还有多少'+(j.distance_unit||'码');$('choices').textContent='';let choices=j.choices||[];if(j.stage==='active'&&!choices.length)choices=['这杆怎么打','下一杆有什么风险','这洞六杆','两推','没有罚杆','确认','撤销上一条记分'];if(j.stage==='idle')choices=['下一场'];if(['memory','name','proactive','shot_recording','driver','driver_kind','seven','seven_kind','miss'].includes(j.stage))choices=[...choices,'先打球，稍后了解'];for(let t of choices){let b=document.createElement('button');b.className='alt';b.textContent=t;b.onclick=()=>run(()=>say(t));$('choices').append(b)}}
-async function sendPending(){if(!pending)throw Error('没有待重试请求');const sent=pending;try{let d=await api('/journey',sent);pending=null;if(sent.event?.type==='gps'&&sent.event.data?.simulation_source==='map_click'){if(!d.result.ignored){acceptedMapPosition={...sent.event.data};delete acceptedMapPosition.simulation_position_action;if(selectedMapPosition&&selectedMapPosition.latitude===sent.event.data.latitude&&selectedMapPosition.longitude===sent.event.data.longitude){selectedMapPosition=null;bubble('系统',d.result.simulated_shot_recorded?'地图选点已采用，已记模拟击球。':'地图选点已采用，未新增击球。')}activeSimulation='map';lastSimulation='map';$('simPause').textContent='暂停模拟定位'}else{bubble('系统','地图选点未采用：'+(d.result.reason==='implausible_jump'?'位置跳动过快，请稍后再提交该点。':d.result.reason||'未通过定位检查'))}}render(d.journey);bubble('球童',d.result.text);if(sent.event?.type==='message'&&$('utterance').value.trim()===sent.event.text)$('utterance').value='';$('sendStatus').textContent='';$('retryInline').hidden=true;return d}catch(e){if(e.received)pending=null;throw e}}
+function render(j){journey=j;renderRoundRecords(j);renderHoleNavigation(j);$('stage').textContent=(names[j.stage]||j.stage)+' · 状态 '+j.version+(j.quiet?' · 已静默':'');$('round').textContent=j.round?`${j.round.id} · ${j.course_name||'合成球场'} · ${j.round.tee||'发球台未知'} · ${j.round.goal||''}`:'尚未开始';$('score').textContent=j.score_summary.confirmed_holes?`${j.score_summary.confirmed_holes}洞已确认，小计${j.score_summary.confirmed_subtotal}杆`:'未确认成绩不计入小计';$('memory').textContent='距离：'+(j.distance_unit||'码')+' · '+(j.memory_allowed?'已同意跨场记住确认资料':j.memory_allowed===false?'仅本场；下一场不沿用个人资料':'尚未确认记忆意愿');$('coach').textContent=j.coach.enabled?'已开启 · '+(j.coach.plan?.focus||'尚未接受重点'):'关闭 · 不追踪训练';$('details').textContent=JSON.stringify({runtime_protocol:j.runtime_protocol,profile:j.profile,history:j.history,coach:j.coach},null,2);renderMap(j);syncShotAudio(j);$('distance').textContent='还有多少'+(j.distance_unit||'码');$('choices').textContent='';let choices=j.choices||[];if(j.stage==='active'&&!choices.length)choices=['这杆怎么打','下一杆有什么风险','这洞六杆','两推','没有罚杆','确认','撤销上一条记分'];if(j.stage==='idle')choices=['下一场'];if(['memory','name','proactive','shot_recording','driver','driver_kind','seven','seven_kind','miss'].includes(j.stage))choices=[...choices,'先打球，稍后了解'];for(let t of choices){let b=document.createElement('button');b.className='alt';b.textContent=t;b.onclick=()=>run(()=>say(t));$('choices').append(b)}}
+async function sendPending(){if(!pending)throw Error('没有待重试请求');const sent=pending;try{let d=await api('/journey',sent);pending=null;if(sent.event?.type==='gps'&&sent.event.data?.simulation_source==='map_click'){if(!d.result.ignored){acceptedMapPosition={...sent.event.data};delete acceptedMapPosition.simulation_position_action;delete acceptedMapPosition.simulation_refresh;if(selectedMapPosition&&selectedMapPosition.latitude===sent.event.data.latitude&&selectedMapPosition.longitude===sent.event.data.longitude){selectedMapPosition=null;bubble('系统',d.result.simulated_shot_recorded?'地图选点已采用，已记模拟击球。':'地图选点已采用，未新增击球。')}activeSimulation='map';lastSimulation='map';$('simPause').textContent='暂停模拟定位'}else{bubble('系统','地图选点未采用：'+(d.result.reason==='implausible_jump'?'位置跳动过快，请稍后再提交该点。':d.result.reason||'未通过定位检查'))}}render(d.journey);bubble('球童',d.result.text);if(sent.event?.type==='message'&&$('utterance').value.trim()===sent.event.text)$('utterance').value='';$('sendStatus').textContent='';$('retryInline').hidden=true;return d}catch(e){if(e.received)pending=null;throw e}}
 async function event(type,extra={}){if(!token)throw Error('请先注册或登录测试账号');if(pending)throw Error('上次回执未收到，请点“重试原请求”，避免回答错位');let id=crypto.randomUUID();pending={action:'event',operation_id:id,expected_version:journey?.version,event:{type,event_id:id,observed_at:new Date().toISOString(),...extra}};return sendPending()}
-async function say(text){if(pending)throw Error('上条请求还未收到回执，请先重试。');const stamp=Date.parse(journey?.simulation?.device_position?.observed_at||'');if(activeSimulation&&journey?.simulation&&(!Number.isFinite(stamp)||Date.now()-stamp>45000)){await event('gps',{data:simPosition(activeSimulation)})}bubble('你',text);return event('message',{text})}
+async function say(text){if(pending)throw Error('上条请求还未收到回执，请先重试。');const stamp=Date.parse(journey?.simulation?.device_position?.observed_at||'');if(activeSimulation&&journey?.simulation&&(!Number.isFinite(stamp)||Date.now()-stamp>45000)){await event('gps',{data:{...simPosition(activeSimulation),simulation_refresh:true}})}bubble('你',text);cancelAudioWait();return event('message',{text})}
 async function auth(register,guest=false){$('sendStatus').textContent='';$('retryInline').hidden=true;activeSimulation=null;lastSimulation=null;selectedMapPosition=null;acceptedMapPosition=null;token='';pending=null;let email=$('email').value,password=$('password').value;if(guest){email='journey-'+crypto.randomUUID()+'@example.test';password=crypto.randomUUID()}let d=await api(register?'/auth/register':'/auth/login',{email,password});token=d.token;$('password').value='';$('chat').textContent='';let s=await api('/journey',{action:'snapshot'});render(s.journey);await event('resume')}
 $('register').onclick=()=>run(()=>auth(true));$('login').onclick=()=>run(()=>auth(false));$('guest').onclick=()=>run(()=>auth(true,true));$('logout').onclick=()=>run(async()=>{if(token)await api('/auth/logout',{});activeSimulation=null;lastSimulation=null;selectedMapPosition=null;acceptedMapPosition=null;token='';journey=null;renderRoundRecords(null);$('sendStatus').textContent='';$('retryInline').hidden=true;$('stage').textContent='已退出';$('details').textContent='';$('choices').textContent='';$('chat').textContent='';$('memory').textContent='';$('round').textContent='';$('coach').textContent='';$('score').textContent=''});
 $('form').onsubmit=e=>{e.preventDefault();if(busy){$('sendStatus').textContent='正在处理上一条请求，输入已保留，请稍后发送。';return}let t=$('utterance').value.trim();if(t)return run(()=>say(t))};
@@ -52,19 +55,147 @@ $('teegps').onclick=()=>run(async()=>{if(await simulate('tee')&&!lastSimSpoke&&j
 $('gps').onclick=()=>run(()=>simulate('fairway'));
 $('greengps').onclick=()=>run(()=>simulate('green'));
 $('simPause').onclick=()=>{if(activeSimulation){activeSimulation=null;$('simPause').textContent='继续模拟定位'}else if(lastSimulation){activeSimulation=lastSimulation;$('simPause').textContent='暂停模拟定位'}};
-setInterval(()=>{if(activeSimulation&&token&&['tee','start_hole','goal','ready','active'].includes(journey?.stage)&&!busy&&!pending)run(()=>event('gps',{data:simPosition(activeSimulation)}));},15000);
-function renderMap(j){const m=j.simulation;if(selectedMapPosition?.simulation_hole!==m?.hole)selectedMapPosition=null;if(acceptedMapPosition?.simulation_hole!==m?.hole&&activeSimulation==='map'){activeSimulation=null;lastSimulation=null;acceptedMapPosition=null}$('mapCard').hidden=!m;if(!m)return;$('mapLabel').textContent=m.source_name+' · 第'+m.hole+'洞 · '+m.par+'杆 · 蓝台公布'+m.published_yardage+'码';const svg=$('courseMap');svg.replaceChildren();const NS='http://www.w3.org/2000/svg';const [w,s,e,n]=m.bounds;const cosine=Math.cos((s+n)/2*Math.PI/180),dx=(e-w)*cosine,dy=n-s,scale=450/Math.max(dx,dy);function xy(p){return [25+(p.longitude-w)*cosine*scale+(450-dx*scale)/2,25+(n-p.latitude)*scale+(450-dy*scale)/2]}const colors={HoleBoundry:['none','#a9b3a1'],FairwayTrace:['#b2d5a3','#81a475'],WaterTrace:['#b5dce8','#80becf'],BunkerTrace:['#f3dfaa','#d5be7f'],TeeboxTrace:['#d5dec1','#a7b591'],GreenTrace:['#5caa72','#3d8756']};for(const kind of Object.keys(colors)){for(const path of m.paths.filter(p=>p.kind===kind)){const poly=document.createElementNS(NS,'polygon');poly.setAttribute('points',path.points.map(p=>xy(p).join(',')).join(' '));poly.setAttribute('fill',colors[kind][0]);poly.setAttribute('stroke',colors[kind][1]);poly.setAttribute('stroke-width','1');svg.append(poly)}}for(const [label,p,color] of [['T',m.positions.tee,'#304c3b'],['G',m.positions.green,'#304c3b'],['●',m.device_position,'#e47b30'],['选点',selectedMapPosition,'#8654ba']]){if(!p)continue;const [x,y]=xy(p);const circle=document.createElementNS(NS,'circle');circle.setAttribute('cx',x);circle.setAttribute('cy',y);circle.setAttribute('r',label==='●'?'6':'8');circle.setAttribute('fill',color);svg.append(circle);const text=document.createElementNS(NS,'text');text.setAttribute('x',x+10);text.setAttribute('y',y-8);text.setAttribute('font-size','13');text.textContent=label==='●'?'设备':label;svg.append(text)}renderMapSelection()}
+setInterval(()=>{if(activeSimulation&&token&&['tee','start_hole','goal','ready','active'].includes(journey?.stage)&&!busy&&!pending)run(()=>event('gps',{data:{...simPosition(activeSimulation),simulation_refresh:true}}));},15000);
+function renderMap(j){const m=j.simulation;if(selectedMapPosition?.simulation_hole!==m?.hole)selectedMapPosition=null;if(acceptedMapPosition?.simulation_hole!==m?.hole&&activeSimulation==='map'){activeSimulation=null;lastSimulation=null;acceptedMapPosition=null}$('mapCard').hidden=!m;if(!m)return;$('mapLabel').textContent=m.source_name+' · 第'+m.hole+'洞 · '+m.par+'杆 · 蓝台公布'+m.published_yardage+'码';const svg=$('courseMap');svg.replaceChildren();const NS='http://www.w3.org/2000/svg';const [w,s,e,n]=m.bounds;const cosine=Math.cos((s+n)/2*Math.PI/180),dx=(e-w)*cosine,dy=n-s,scale=450/Math.max(dx,dy);function xy(p){return [25+(p.longitude-w)*cosine*scale+(450-dx*scale)/2,25+(n-p.latitude)*scale+(450-dy*scale)/2]}const colors={HoleBoundry:['none','#a9b3a1'],FairwayTrace:['#b2d5a3','#81a475'],WaterTrace:['#b5dce8','#80becf'],BunkerTrace:['#f3dfaa','#d5be7f'],TeeboxTrace:['#d5dec1','#a7b591'],GreenTrace:['#5caa72','#3d8756']};for(const kind of Object.keys(colors)){for(const path of m.paths.filter(p=>p.kind===kind)){const poly=document.createElementNS(NS,'polygon');poly.setAttribute('points',path.points.map(p=>xy(p).join(',')).join(' '));poly.setAttribute('fill',colors[kind][0]);poly.setAttribute('stroke',colors[kind][1]);poly.setAttribute('stroke-width','1');svg.append(poly)}}renderTestStakes(svg,NS,m.test_stakes||[],xy);for(const [label,p,color] of [['T',m.positions.tee,'#304c3b'],['G',m.positions.green,'#304c3b'],['●',m.device_position,'#e47b30'],['选点',selectedMapPosition,'#8654ba']]){if(!p)continue;const [x,y]=xy(p);const circle=document.createElementNS(NS,'circle');circle.setAttribute('cx',x);circle.setAttribute('cy',y);circle.setAttribute('r',label==='●'?'6':'8');circle.setAttribute('fill',color);svg.append(circle);const text=document.createElementNS(NS,'text');text.setAttribute('x',x+10);text.setAttribute('y',y-8);text.setAttribute('font-size','13');text.textContent=label==='●'?'设备':label;svg.append(text)}renderMapSelection()}
+function renderTestStakes(svg,ns,groups,xy){
+  $('testStakesNote').hidden=groups.length===0
+  const colors={white:'#fff',red:'#c92d32',yellow:'#f4cc26'}
+  for(const group of groups){
+    const points=group.points.map(xy)
+    const line=document.createElementNS(ns,'polyline')
+    line.setAttribute('points',points.map(p=>p.join(',')).join(' '))
+    line.setAttribute('fill','none')
+    line.setAttribute('stroke',group.kind==='white'?'#555':colors[group.kind])
+    line.setAttribute('stroke-width','2')
+    line.setAttribute('stroke-dasharray','4 3')
+    svg.append(line)
+    for(const [x,y] of points){
+      const stake=document.createElementNS(ns,'rect')
+      stake.setAttribute('x',x-3)
+      stake.setAttribute('y',y-9)
+      stake.setAttribute('width','6')
+      stake.setAttribute('height','11')
+      stake.setAttribute('fill',colors[group.kind])
+      stake.setAttribute('stroke','#383838')
+      svg.append(stake)
+    }
+    const [x,y]=points[0]
+    const label=document.createElementNS(ns,'text')
+    label.setAttribute('x',x-7)
+    label.setAttribute('y',y-12)
+    label.setAttribute('text-anchor','end')
+    label.setAttribute('font-size','11')
+    label.setAttribute('fill','#232323')
+    label.setAttribute('stroke','#f1f4ec')
+    label.setAttribute('stroke-width','3')
+    label.setAttribute('paint-order','stroke')
+    label.textContent=group.label
+    svg.append(label)
+  }
+}
 // View-box projection shared by map picking and its inverse; independent of CSS size.
 function mapProjection(bounds){const [w,s,e,n]=bounds,c=Math.cos((s+n)/2*Math.PI/180),dx=(e-w)*c,dy=n-s,k=450/Math.max(dx,dy),ox=25+(450-dx*k)/2,oy=25+(450-dy*k)/2;return {toPoint:p=>[ox+(p.longitude-w)*c*k,oy+(n-p.latitude)*k],toPosition:(x,y)=>({latitude:n-(y-oy)/k,longitude:w+(x-ox)/(c*k)})}}
 function mapDistance(a,b){const r=Math.PI/180,dlat=(b.latitude-a.latitude)*r,dlon=(b.longitude-a.longitude)*r,v=Math.sin(dlat/2)**2+Math.cos(a.latitude*r)*Math.cos(b.latitude*r)*Math.sin(dlon/2)**2;return 6371000*2*Math.atan2(Math.sqrt(v),Math.sqrt(Math.max(0,1-v)))}
-function renderMapSelection(){const p=selectedMapPosition,m=journey?.simulation;if(!p||!m){$('mapSelection').textContent='点击地图选择模拟位置，再确认提交。';return}const meters=mapDistance(p,m.positions.green),unit=journey.distance_unit==='米'?'米':'码';$('mapSelection').textContent='待提交：'+p.latitude.toFixed(6)+', '+p.longitude.toFixed(6)+' · 到果岭参考点约'+Math.round(unit==='米'?meters:meters/0.9144)+unit+'（选点预览）'}
+function renderMapSelection(){const p=selectedMapPosition,m=journey?.simulation;$('mapCancel').disabled=busy||!p;if(!p||!m){$('mapSelection').textContent='点击地图选择模拟位置，再确认提交。';return}const meters=mapDistance(p,m.positions.green),unit=journey.distance_unit==='米'?'米':'码';$('mapSelection').textContent='待提交：'+p.latitude.toFixed(6)+', '+p.longitude.toFixed(6)+' · 到果岭参考点约'+Math.round(unit==='米'?meters:meters/0.9144)+unit+'（选点预览）'}
 function selectMapPoint(x,y){const m=journey?.simulation;if(!m||!['tee','start_hole','goal','ready','active'].includes(journey.stage)||busy||pending)return false;const p=mapProjection(m.bounds).toPosition(x,y),[w,s,e,n]=m.bounds;if(p.longitude<w||p.longitude>e||p.latitude<s||p.latitude>n)return false;selectedMapPosition={...p,accuracy_m:2,simulation_hole:m.hole,simulation_source:'map_click'};renderMap(journey);return true}
 $('courseMap').onclick=e=>{const svg=$('courseMap'),matrix=svg.getScreenCTM();if(!matrix)return;const p=svg.createSVGPoint();p.x=e.clientX;p.y=e.clientY;const local=p.matrixTransform(matrix.inverse());selectMapPoint(local.x,local.y)};
 function renderHoleNavigation(j){const enabled=j.stage==='active'&&j.simulation; $('holeNavigation').hidden=!enabled;if(!enabled)return;const select=$('simHole');if(!select.options.length){for(let n=1;n<=18;n++){const o=document.createElement('option');o.value=n;o.textContent='第'+n+'洞';select.append(o)}}select.value=j.simulation.hole;}
 $('switchHole').onclick=()=>run(async()=>{const target=Number($('simHole').value);const d=await event('simulation_hole',{hole:target});if(d.result.simulation_hole_switched){selectedMapPosition=null;acceptedMapPosition=null;activeSimulation='tee';lastSimulation='tee';$('simPause').textContent='暂停模拟定位';bubble('系统','已切换到第'+target+'洞发球台；未补成绩，也未生成击球。');renderMap(journey)}});
 $('mapSubmit').onclick=()=>run(async()=>{if(!selectedMapPosition)throw Error('请先点击地图选择位置');if(!['tee','start_hole','goal','ready','active'].includes(journey?.stage))throw Error('请先选择球场');await event('gps',{data:{...selectedMapPosition}})});
 $('mapCorrect').onclick=()=>run(async()=>{if(!selectedMapPosition||journey?.stage!=='active')throw Error('请在场中先点击地图选择修正位置');await event('gps',{data:{...selectedMapPosition,simulation_position_action:'correct'}})});
-$('mapCancel').onclick=()=>{selectedMapPosition=null;if(journey)renderMap(journey)};
+$('mapCancel').onclick=()=>{
+ const hadSelection=Boolean(selectedMapPosition);
+ selectedMapPosition=null;
+ if(journey)renderMap(journey);
+ $('mapSelection').textContent=hadSelection?'已取消待提交选点，可以重新点击地图选择。':'当前没有待提交选点，可以点击地图重新选择。';
+ $('mapCancel').disabled=true;
+};
 $('snapshot').onclick=()=>run(async()=>{let d=await api('/journey',{action:'snapshot'});render(d.journey);bubble('系统','已读取本机持久化状态。')});$('replay').onclick=()=>run(async()=>{let a=await api('/journey',{action:'snapshot'}),b=await api('/journey',{action:'replay'});if(stable(a.journey)!==stable(b.journey))throw Error('重放结果不一致');bubble('系统','事件重放与保存状态一致。')});
+
+let audioStream=null,audioContext=null,audioAnalyser=null,audioTimer=null,audioArm=null;
+let audioFrame=null,audioBaseline=0.01,audioLastPeak=0,audioPendingSignal=false;
+function cancelAudioWait(){clearTimeout(audioTimer);audioTimer=null}
+function stopShotAudio(){
+ cancelAudioWait();cancelAnimationFrame(audioFrame);audioFrame=null;
+ audioStream?.getTracks().forEach(track=>track.stop());audioStream=null;
+ audioContext?.close();audioContext=null;audioAnalyser=null;
+ $('audioToggle').textContent='开启麦克风击球识别';
+ $('audioStatus').textContent='声音识别已关闭';
+}
+function syncShotAudio(j){
+ const a=j?.shot_audio||{};
+ if(!token||j?.quiet||j?.stage!=='active'||a.enabled===false){
+  if(audioStream)stopShotAudio();
+  if(a.enabled===false)$('audioStatus').textContent='声音识别已关闭';
+  cancelAudioWait();audioArm=null;return;
+ }
+ if(window.audioHole!=null&&window.audioHole!==j.simulation?.hole){cancelAudioWait();audioArm=null}
+ window.audioHole=j.simulation?.hole;
+ if(audioArm!==a.arm_id){cancelAudioWait();audioArm=a.arm_id}
+ $('audioStatus').textContent=a.phase==='armed'?'已选定策略，等待击球声音':a.phase==='waiting'?'等待观察落点':'等待选择策略';
+ if(a.phase==='waiting'&&!audioTimer){
+  const key=a.arm_id;
+  audioTimer=setTimeout(async()=>{
+   audioTimer=null;
+   if(journey?.shot_audio?.arm_id!==key||journey?.shot_audio?.phase!=='waiting')return;
+   if(busy||pending){syncShotAudio(journey);return}
+   await run(()=>event('message',{text:'击球声音等待结束'}));
+  },a.delay_seconds*1000+300);
+ }else if(a.phase!=='waiting')cancelAudioWait();
+}
+async function shotSoundCandidate(manual=false){
+ if(busy||pending||audioPendingSignal){
+  if(manual)$('audioStatus').textContent='正在处理上一条请求，请稍后点击';
+  return;
+ }
+ if(!token||journey?.stage!=='active'){
+  if(manual)$('audioStatus').textContent='请先开始球局并选定用杆和策略';
+  return;
+ }
+ if(journey?.quiet){
+  if(manual)$('audioStatus').textContent='当前已静默，请恢复语音后测试';
+  return;
+ }
+ if(manual&&journey?.shot_audio?.enabled===false){
+  await run(()=>event('message',{text:'开启击球声音识别'}));
+ }
+ if(journey?.shot_audio?.phase!=='armed'){
+  if(manual)$('audioStatus').textContent=journey?.shot_audio?.phase==='waiting'?'已触发，正在等待观察落点':'请先选定这杆用杆和策略，再模拟击球声音';
+  return;
+ }
+ if(manual)$('audioStatus').textContent='已模拟击球声音，正在等待观察落点';
+ audioPendingSignal=true;
+ try{await run(()=>event('message',{text:'音频检测到疑似击球'}))}
+ finally{audioPendingSignal=false}
+}
+function sampleShotAudio(){
+ if(!audioAnalyser)return;
+ const samples=new Float32Array(audioAnalyser.fftSize);
+ audioAnalyser.getFloatTimeDomainData(samples);
+ let sum=0,peak=0;
+ for(const sample of samples){sum+=sample*sample;peak=Math.max(peak,Math.abs(sample))}
+ const rms=Math.sqrt(sum/samples.length),now=performance.now();
+ // Initial impulse detector. Thresholds require on-course calibration.
+ if(journey?.shot_audio?.phase==='armed'&&peak>0.30&&rms>Math.max(0.06,audioBaseline*5)&&now-audioLastPeak>2500){
+  audioLastPeak=now;shotSoundCandidate();
+ }
+ audioBaseline=audioBaseline*0.98+Math.min(rms,0.08)*0.02;
+ audioFrame=requestAnimationFrame(sampleShotAudio);
+}
+$('audioToggle').onclick=()=>run(async()=>{
+ if(audioStream){stopShotAudio();await say('关闭击球声音识别');return}
+ if(!token||journey?.stage!=='active')throw Error('请先开始球局');
+ const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
+ try{
+  audioContext=new AudioContext();await audioContext.resume();
+  audioStream=stream;audioAnalyser=audioContext.createAnalyser();audioAnalyser.fftSize=1024;
+  audioContext.createMediaStreamSource(stream).connect(audioAnalyser);
+  await say('开启击球声音识别');
+  $('audioToggle').textContent='关闭麦克风击球识别';sampleShotAudio();
+ }catch(error){stream.getTracks().forEach(track=>track.stop());stopShotAudio();throw error}
+});
+$('audioTest').onclick=()=>shotSoundCandidate(true);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopShotAudio()});
+window.addEventListener('pagehide',stopShotAudio);
 </script></html>
 <script>document.getElementById("retry").onclick=()=>run(sendPending);</script>

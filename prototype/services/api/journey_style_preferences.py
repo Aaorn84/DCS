@@ -169,8 +169,8 @@ def reduce_journey(state, event, seq, now):
         return {'text': '', 'speak_allowed': False, 'duplicate': True}
 
     text = event.get('text', '').strip().rstrip('。！!')
-    enhanced = event.get('protocol_version') in (55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96)
-    edge_enabled = event.get('protocol_version') in (56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96)
+    enhanced = event.get('protocol_version') in (55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107)
+    edge_enabled = event.get('protocol_version') in (56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107)
     offer = journey.get('tee_route_options') or {}
     selected = (tee_choice(text) if enhanced and event.get('type') == 'message'
                 and offer.get('status') == 'awaiting_choice'
@@ -183,10 +183,22 @@ def reduce_journey(state, event, seq, now):
         from wedge_leave import suggested_leave
 
         learned_leave = suggested_leave(journey)
+    if event.get('protocol_version',0)>=107 and journey.get('stage')=='active':
+        from ball_rules import initialize
+        initialize(state)
     before = journey.get('last_consultation')
     reply = None
     if event.get('type') == 'message' and journey.get('stage') == 'active' and not silent(state):
-        if event['protocol_version'] >= 65:
+        if event['protocol_version'] >= 107:
+            from ball_rules import handle as rule_reply
+            reply=rule_reply(state,event,text,now)
+        if reply is None and event['protocol_version'] >= 106:
+            from shot_audio import handle
+            reply=handle(state,event,now)
+        if reply is None and 105<=event['protocol_version']<107:
+            from ball_outcome import handle
+            reply=handle(state,event,text,now)
+        if reply is None and event['protocol_version'] >= 65:
             from putt_performance import record
 
             reply = record(state, text, event_id)
@@ -208,11 +220,11 @@ def reduce_journey(state, event, seq, now):
             from wedge_leave import record_or_query
 
             reply = record_or_query(state, text, event_id, combinations=event['protocol_version'] >= 61)
-        if reply is None and event.get('protocol_version') in (58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96):
+        if reply is None and event.get('protocol_version') in (58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107):
             from on_course_preferences import approach_note, respond as on_course_reply
 
             reply = on_course_reply(state, text, event_id, now, check_layup_match=event['protocol_version'] >= 59, learned_leave=learned_leave, learned_pace=event['protocol_version'] >= 65) or approach_note(journey, text)
-        if event.get('protocol_version') in (57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96) and reply is None:
+        if event.get('protocol_version') in (57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107) and reply is None:
             reply = swing_reply(state, journey, text, event_id)
         if edge_enabled and reply is None:
             reply = edge_reply(state, journey, text, event_id)
@@ -293,16 +305,83 @@ def reduce_journey(state, event, seq, now):
             adapted['_par_five_v95'] = True
         if event['protocol_version'] >= 96:
             adapted['_carry_crossing_v96'] = True
+        if event['protocol_version'] >= 97:
+            adapted['_par_five_compare_v97'] = True
+        if event['protocol_version'] >= 98:
+            adapted['_ask_fairway_carry_v98'] = True
+        if event['protocol_version'] >= 99:
+            adapted['_carry_playability_v99'] = True
+        if event['protocol_version'] >= 100:
+            adapted['_tee_brief_order_v100'] = True
+        if event['protocol_version'] >= 101:
+            adapted['_par_five_bag_v101'] = True
+        if event['protocol_version'] >= 102:
+            adapted['_par_five_roll_v102'] = True
+        if event['protocol_version'] >= 103:
+            adapted['_shared_tee_club_v103'] = True
+        if event['protocol_version'] >= 104:
+            adapted['_approach_risk_v104'] = True
+        if event['protocol_version'] >= 105:
+            adapted['_ball_outcome_v105'] = True
+        if event['protocol_version'] >= 107:
+            adapted['_ball_rules_v107'] = True
+        draft=state.get('session',{}).get('draft') or {}
+        if (event.get('protocol_version',0)>=106 and event.get('type')=='resume'
+                and not draft.get('penalties_explicit')
+                and type(draft.get('total')) is int and type(draft.get('putts')) is int
+                and (draft.get('penalties') or 0)>draft['total']):
+            from ball_outcome import reported_penalties
+            penalty=reported_penalties(state,draft['hole'])
+            if draft['putts']+penalty<=draft['total']:
+                adapted.update(type='message',text=f"{draft['hole']}号洞{draft['total']}杆，{draft['putts']}推，{penalty}罚杆")
         decisions_before=len(journey.get('player_decisions', []))
         result = previous(state, adapted, seq, now)
         journey = state['journey']
+        if event.get('protocol_version',0)>=107:
+            from shot_links import scope as decision_scope
+            for decision in journey.get('player_decisions',[])[decisions_before:]:
+                decision.update(round_scope=list(decision_scope(state)),observed_at=event['observed_at'])
         if event['protocol_version'] >= 66 and not result.get('duplicate'):
             from tee_club_fallback import update
 
             result = update(state, event, now, before, result,
                             decision=(journey.get('player_decisions') or [None])[-1]
                             if event['protocol_version'] >= 70 and len(journey.get('player_decisions', [])) > decisions_before else None)
-        if (event['protocol_version'] >= 91 and event.get('type')=='gps'
+        if result.get('simulation_hole_switched') is not None and not result.get('duplicate'):
+            from shot_links import scope
+            outcome=journey.get('ball_outcomes', {}).get(canonical(scope(state)))
+            if outcome:
+                outcome.update(phase='closed', outcome=None)
+            journey.get('pin_locations', {}).pop(canonical(scope(state)), None)
+            journey.setdefault('simulation_attempts', {})[canonical(scope(state))]=event['observed_at']
+            if event.get('protocol_version',0)>=107:
+                from ball_rules import reset
+                reset(state)
+            journey.pop('shot_audio', None)
+            for key in ('tee_club_fallback','simulated_club_choice','last_consultation','approach_club_offer'):
+                journey.pop(key, None)
+        handled_position = False
+        if (event['protocol_version'] >= 105 and event.get('type') == 'gps'
+                and not result.get('ignored') and not result.get('duplicate')):
+            if event['protocol_version']>=107:
+                from ball_rules import on_position, blocking, correct_landing
+                if event.get('data',{}).get('simulation_position_action')=='correct':
+                    correct_landing(state,event,now)
+                handled_position=on_position(state,event,now)
+                if handled_position is not None:
+                    result.update(text=handled_position,speak_allowed=bool(handled_position) and not silent(state))
+                    if silent(state):result['text']=''
+                    handled_position=True
+                elif blocking(state):
+                    handled_position=True
+            else:
+                from ball_outcome import after_position, current
+                handled_position=after_position(state,event,now)
+                if handled_position and not silent(state):
+                    result.update(text=handled_position,speak_allowed=True)
+                elif (current(state) or {}).get('phase') in ('check','search','water_check','provisional','replay','water'):
+                    handled_position=True
+        if (not handled_position and event['protocol_version'] >= 91 and event.get('type')=='gps'
                 and journey.get('stage')=='active' and not result.get('ignored') and not result.get('duplicate')):
             from shot_links import record_simulated_landing
 
@@ -310,6 +389,17 @@ def reduce_journey(state, event, seq, now):
             recorded = record_simulated_landing(state,event,now,preserve_played_shots=preserve_played_shots)
             if preserve_played_shots and recorded:
                 result['simulated_shot_recorded'] = True
+                if event['protocol_version']>=107:
+                    from ball_rules import on_record, map_landing
+                    on_record(state,event,now)
+                    note=map_landing(state,event,now)
+                elif event['protocol_version']>=105:
+                    from ball_outcome import after_landing
+                    note=after_landing(state,event)
+                else:
+                    note=None
+                if note and not silent(state):
+                    result.update(text=result.get('text','')+note,speak_allowed=True)
         if event['protocol_version'] >= 71 and result.get('saved'):
             from score_shot_reconciliation import reconcile
 
@@ -369,6 +459,12 @@ def reduce_journey(state, event, seq, now):
             journey.pop('putt_performance', None)
         journey.pop('shot_style_evidence', None)
         journey.get('profile', {}).pop('shot_style_preferences', None)
+    if event.get('protocol_version', 0) >= 106 and event.get('type') == 'message' and reply is None:
+        from shot_audio import arm
+        arm(state, event, now)
+    if event.get('type')=='message' and reply is None and len(journey.get('player_decisions', [])) > decisions_before:
+        from shot_links import scope
+        journey.get('pin_locations', {}).pop(canonical(scope(state)), None)
     journey.setdefault('style_receipts', {})[event_id] = digest
     return result
 

@@ -164,6 +164,7 @@ def record_simulated_landing(s,p,now,*,preserve_played_shots=False):
  j=s['journey']
  ids=[row['id'] for row in rows]
  records=j.setdefault('confirmed_shot_distances',[])
+ if rows[-1].get('relief_position'):return
  if any(row['scope']==list(key) and row['pair_ids']==ids and row.get('valid') for row in records):return
  if any(row['scope']==list(key) and row['pair_ids']==ids for row in j.get('rejected_shot_links',[])):return
  report=j.get('previous_club_reports',{}).get(canonical([*key,*ids]),{})

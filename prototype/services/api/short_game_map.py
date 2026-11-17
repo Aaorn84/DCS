@@ -63,7 +63,8 @@ def handle(s,p,now):
   from hazard_route import green_crossing_advice
   from short_pin_distance import estimate
   pin=estimate(s,now,include_aim=True)
-  crossing=green_crossing_advice(s,now,target=(pin or {}).get('aim'),short_game=True,lie=lie)
+  crossing=green_crossing_advice(s,now,target=(pin or {}).get('aim'),short_game=True,lie=lie,
+                                 verify_playability=p.get('_carry_playability_v99',False))
   if crossing:
    j.pop('short_game_question',None)
    j['last_short_game_advice'].update(style='familiar_pitch_or_recovery',source='mapped_obstacle')

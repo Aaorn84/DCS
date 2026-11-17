@@ -47,18 +47,56 @@ def round_records(s):
     j=s.get('journey',{});round_id=(j.get('round') or {}).get('id')
     if not round_id:return {'clubs':[],'score_draft':None}
     clubs={}
+    from datetime import datetime
+    def visible_record(record):
+        since=j.get('simulation_attempts',{}).get(canonical(record['scope']))
+        if not since:return True
+        endpoint=record['endpoints'][-1]
+        stamps=[s.get('evidence',{}).get(eid,{}).get('observed_at') for eid in endpoint.get('evidence_ids',[])]
+        return any(stamp and datetime.fromisoformat(stamp.replace('Z','+00:00'))>=datetime.fromisoformat(since.replace('Z','+00:00')) for stamp in stamps)
     by_hole={}
     for point in j.get('shot_location_candidates',[]):
         if point['round_id']==round_id:
             by_hole.setdefault((point['course'],point['hole']),[]).append(point['id'])
-    order={(course,hole,a,b): index for (course,hole),points in by_hole.items()
-           for index,(a,b) in enumerate(zip(points,points[1:]),1)}
+    order={}
+    for (course,hole),points in by_hole.items():
+        stroke=0
+        candidates={p['id']:p for p in j.get('shot_location_candidates',[])}
+        for a,b in zip(points,points[1:]):
+            if candidates[b].get('relief_position'):continue
+            stroke=max(stroke,candidates[a].get('stroke_base',0))
+            stroke+=1
+            penalties=0
+            incidents={r['incident_id']:r for r in j.get('ball_outcome_history',[])
+                       if r['scope']==[round_id,course,hole] and r.get('phase')=='placement'}
+            for incident in incidents.values():
+                relief=next((i for i,pid in enumerate(points) if candidates[pid].get('relief_position')
+                             and pid==incident.get('relief_point_id')),None)
+                if relief is not None and points.index(a)>=relief:penalties+=incident.get('penalty') or 0
+            order[(course,hole,a,b)]=stroke+penalties
+    # Navigation restarts active location candidates. Historical records retain
+    # their endpoints, so derive missing ordinals from those archived trails.
+    archived={}
+    for record in j.get('confirmed_shot_distances',[]):
+        if record.get('valid') and record['scope'][0]==round_id and visible_record(record):
+            archived.setdefault(tuple(record['scope'][1:]),[]).append(record)
+    for (course,hole),records in archived.items():
+        stroke=0
+        previous_end=None
+        for record in records:
+            start,end=record['endpoints']
+            if previous_end is None or (start['id']!=previous_end and simulated_tee(s,record['scope'],start['point'])):
+                stroke=0
+            stroke+=1
+            key=(course,hole,*record['pair_ids'])
+            order.setdefault(key,record.get('stroke_number') or stroke)
+            previous_end=end['id']
     for key,report in j.get('previous_club_reports',{}).items():
         recorded_round,course,hole,*pair_ids=json.loads(key)
-        if recorded_round==round_id:
-            clubs[report['event_id']]={'hole':hole,'club':report['club'],'source':'previous_club_report','stroke_number':order.get((course,hole,*pair_ids))}
+        if recorded_round==round_id and (course,hole,*pair_ids) in order:
+            clubs[canonical([recorded_round,course,hole,*pair_ids])]={'hole':hole,'club':report['club'],'source':'previous_club_report','stroke_number':order.get((course,hole,*pair_ids))}
     for record in j.get('confirmed_shot_distances',[]):
-        if not current_score_record(s,record):
+        if not visible_record(record) or not current_score_record(s,record):
             continue
         if record['scope'][0]!=round_id or not record.get('valid') or not all(live(s,p) for p in record['endpoints']):
             continue
@@ -67,15 +105,49 @@ def round_records(s):
         match=j.get('previous_club_reports',{}).get(canonical([*record['scope'],*record['pair_ids']]), {})
         club=match.get('club') or record.get('club')
         if club or record.get('inferred_from_score') or record.get('simulated_landing'):
-            key=match.get('event_id') or record.get('club_event_id') or record['id']
+            key=canonical([*record['scope'],*record['pair_ids']])
             clubs[key]={'hole':record['scope'][2],'club':club,'source':'confirmed_distance',
                         'total_horizontal_m':record['total_horizontal_m'],
                         'stroke_number':order.get((*record['scope'][1:],*record['pair_ids'])),
                         **({'inferred_from_score':True} if record.get('inferred_from_score') else {})}
+    for index,row in enumerate(j.get('provisional_strokes',[])):
+        if row['scope'][0]!=round_id:continue
+        since=j.get('simulation_attempts',{}).get(canonical(row['scope']))
+        if since and row.get('observed_at','')<since:continue
+        clubs['provisional-'+str(index)]={'hole':row['scope'][2], 'club':row['club'],
+            'stroke_number':row['stroke_number'],'total_horizontal_m':row['total_horizontal_m'],
+            'source':'provisional_ball'}
     for report in j.get('execution_reports',[]):
         clubs.setdefault(report['event_id'],{'hole':report.get('hole'),'context_hole':report.get('context_hole'),
                          'club':report['club'],'source':'execution_report'})
+    from ball_rules import rows as rule_rows
+    for flow in j.get('ball_rules',{}).values():
+        if flow['scope'][0]!=round_id:continue
+        hole=flow['scope'][2]
+        clubs={key:row for key,row in clubs.items() if row.get('hole')!=hole}
+        for index,row in enumerate(rule_rows(flow)):
+            clubs[f"rules-{hole}-{index}"]=row
+    # Older provisional flows may have stored the live ball while dropping
+    # the original club-only row when restarting location candidates.
+    for row in list(clubs.values()):
+        if row.get('source')!='provisional_ball' or (row.get('stroke_number') or 0)<3:continue
+        original=row['stroke_number']-2
+        if not any(r.get('hole')==row['hole'] and r.get('stroke_number')==original for r in clubs.values()):
+            clubs[f"ob-original-{row['hole']}-{original}"]={
+                'hole':row['hole'],'stroke_number':original,'club':row['club'],
+                'total_horizontal_m':None,'source':'original_ball_ob'}
     draft=s.get('session',{}).get('draft')
+    for hole in range(1,19):
+        pending=draft if draft and draft['hole']==hole else None
+        total=pending.get('total') if pending else fact_value(s,f'holes.{hole}.total')
+        putts=pending.get('putts') if pending else fact_value(s,f'holes.{hole}.putts')
+        if type(total) is not int or type(putts) is not int or not 0<=putts<=total:continue
+        for stroke in range(total-putts+1,total+1):
+            if any(r.get('hole')==hole and r.get('stroke_number')==stroke for r in clubs.values()):continue
+            clubs[f"putt-{hole}-{stroke}"]={
+                'hole':hole,'stroke_number':stroke,'club':'推杆',
+                'total_horizontal_m':None,'source':'reported_putt_count',
+                'score_pending':bool(pending)}
     return {'clubs':sorted(clubs.values(),key=lambda row:(row.get('hole') or 99,row.get('stroke_number') or 99)),
             'score_draft':{key:draft.get(key) for key in ('hole','total','putts','penalties','awaiting')} if draft else None}
 
@@ -97,6 +169,8 @@ def view(s):
         navigation['simulation']['device_position']=position.get('value') if position.get('valid') else None
     if stage=='active' and j.get('consultation'):
         choices={'tee_intent':['稳一点','争取进攻','自己打'],'approach_club':['不知道','跳过','自己打'],'tee_refresh':['自己打'],'tee_club':['不知道','没有这支杆','跳过','自己打'],'tee_commit':['按这个打','再想想','自己打'],'intent':['稳一点','想上果岭','自己打'],'ball':['就在球旁','还在走过去','自己打'],'lie':['球道','长草','沙坑','不清楚','自己打'],'plan':['7铁打向果岭中央','用熟悉的短杆过渡','自己打'],'commit':['按这个打','再想想','自己打']}.get(j['consultation']['phase'],[])
+        if j['consultation']['phase']=='tee_commit' and len((j['consultation'].get('last_offer') or {}).get('options',[]))>1:
+            choices=['两上方案','三上方案','自己打']
     if stage=='active' and j.get('response_context',{}).get('question_owner') in ('pin.depth','pin.side'):
         choices=['前旗','中旗','后旗','跳过'] if j['response_context']['question_owner']=='pin.depth' else ['偏左','居中','偏右','跳过']
     if stage=='active' and j.get('short_game_question'):choices=['没有障碍','有沙坑','有长草','不清楚']
@@ -111,8 +185,15 @@ def view(s):
             from dialogue_routing import pending_owner
             choices=['继续刚才的问题'] if j.get('last_pending_prompt',{}).get('question_owner')==pending_owner(s) and pending_owner(s) else []
     if stage=='active' and j.get('consultation',{}).get('phase')=='tee_options' and response.get('question_owner') in (None,'tee.choice'):choices=['保守方案','进取方案','自己打']
+    if stage=='active' and not (s.get('session',{}).get('draft') or {}).get('awaiting'):
+        from ball_rules import current as rule_current, choices as rule_choices
+        if rule_current(s):
+            choices=rule_choices(s) or choices
+        else:
+            from ball_outcome import choices as outcome_choices
+            choices=outcome_choices(s) or choices
     return {**navigation,'stage':stage,'profile':j.get('profile',{}),'memory_allowed':j.get('memory_allowed'),
-      'round':j.get('round'),'history':j.get('history',[]),'coach':j.get('coach',{'enabled':False}),
+      'shot_audio':j.get('shot_audio',{}),'round':j.get('round'),'history':j.get('history',[]),'coach':j.get('coach',{'enabled':False}),
       'choices':choices if not j.get('quiet') else ['继续'],'question':q,'version':s['version'],
       'score_summary':summary(s),'round_records':round_records(s),'quiet':j.get('quiet',False),
       'distance_unit':j.get('profile',{}).get('units',{}).get('value','码')}
@@ -151,7 +232,7 @@ def _apply_journey(s,p,seq,now):
             c['phase']='lie';return result('现场是球道、长草还是沙坑？',choices=['球道','长草','沙坑','不清楚','自己打'])
         c['position_version']=pos['version'] if pos else None;c['position_point']=copy.deepcopy(pos['value']) if pos else None;c['phase']='plan'
         from approach_dialogue import advise
-        assessment=advise(s,c,now,practical_rough=p.get('_practical_rough_v83',False),confirm_landing=p.get('_followups_v84',False),use_landing_depth=p.get('_landing_depth_v85',False),verified_lines=p.get('_aim_lines_v86',False),carry_crossing=p.get('_carry_crossing_v96',False));c['strategy_assessment']=assessment
+        assessment=advise(s,c,now,practical_rough=p.get('_practical_rough_v83',False),confirm_landing=p.get('_followups_v84',False),use_landing_depth=p.get('_landing_depth_v85',False),verified_lines=p.get('_aim_lines_v86',False),carry_crossing=p.get('_carry_crossing_v96',False),verify_playability=p.get('_carry_playability_v99',False),allow_roll_in=p.get('_par_five_roll_v102',False),compare_safety=p.get('_approach_risk_v104',False));c['strategy_assessment']=assessment
         from iron_estimates import iron_table,pitching_wedge,lofted_wedge_option
         pin=assessment.get('pin_distance_estimate')
         pw=pitching_wedge(j['profile'],iron_table(j['profile']))
@@ -178,9 +259,34 @@ def _apply_journey(s,p,seq,now):
         from tee_strategy import suggest
         return suggest(s,a,c.get('player_intent'),j['profile'].get('units',{}).get('value','码'),
                        c.get('unavailable_clubs',[]),selected,mapped_fallback=p.get('_tee_geometry_v94',False),
-                       par_five_plan=p.get('_par_five_v95',False),carry_crossing=p.get('_carry_crossing_v96',False))
+                       par_five_plan=p.get('_par_five_v95',False),carry_crossing=p.get('_carry_crossing_v96',False),
+                       compare_par_five=p.get('_par_five_compare_v97',False),
+                       ask_fairway_carry=p.get('_ask_fairway_carry_v98',False) and not c.get('collect_par_five_bag'),
+                       allow_roll_in=p.get('_par_five_roll_v102',False),
+                       compare_safety=p.get('_approach_risk_v104',False))
     def tee_offer(c,a):
+        brief=tee_brief(a) if p.get('_tee_brief_order_v100') else ''
+        def tee_reply(text,**kwargs):
+            if brief:
+                return result(brief+'\n'+text,tee_brief_prefix=brief,**kwargs)
+            return result(text,**kwargs)
         c['analysis']=a
+        if c.get('collect_par_five_bag') and a['par']==5:
+            from tee_strategy import PAR_FIVE_BAG
+            from club_selection import same_label
+            skipped=c.get('bag_skips',[])
+            absent=j['profile'].get('absent_fairway_clubs',{}).get('value',[])
+            known=a['clubs']
+            missing=next(((key,label) for key,label in PAR_FIVE_BAG
+                          if key not in known and key not in skipped and key not in absent
+                          and not any(same_label(label,club['label']) for club in known.values())),None)
+            if missing:
+                key,label=missing
+                c.update(phase='tee_club',requested_club='par_five_bag',bag_club=key)
+                choices=['没有','不知道','跳过','自己打']
+                if key in ('iron3','iron4'):
+                    return tee_reply(f'你有{label}吗？如果有，常用Carry大概多少？',choices=choices)
+                return tee_reply(f'{label}在球道上的Carry大概多少？',choices=choices)
         offer=tee_proposal(c,a,c.get('selected_club'))
         continuing=bool(c.get('last_offer'))
         body=offer.get('continuation_text',offer['text']) if continuing else offer['text']
@@ -190,16 +296,22 @@ def _apply_journey(s,p,seq,now):
         c['last_offer']=copy.deepcopy(offer)
         if offer.get('missing_club'):
             c['phase']='tee_club';c['requested_club']=offer['missing_club']
-            return result(offer['question'],choices=['不知道','没有这支杆','跳过','自己打'])
+            if offer['missing_club']=='par_five_fairway':
+                return tee_reply(body+' '+offer['question'],choices=['不知道','跳过','自己打'])
+            return tee_reply(offer['question'],choices=['不知道','没有这支杆','跳过','自己打'])
+        if len(offer['options'])>1:
+            c['phase']='tee_commit'
+            c.pop('suggestion',None)
+            return tee_reply(body+'你想走两上还是三上？',choices=['两上方案','三上方案','自己打'])
         if offer['options']:
             c['suggestion']=offer['options'][0];c['phase']='tee_commit'
             if j.get('round',{}).get('service_policy',{}).get('relaxed'):
-                return result(body,choices=['按这个打','再想想','自己打'])
-            return result(body+'就按这个方案打吗？',choices=['按这个打','再想想','自己打'])
+                return tee_reply(body,choices=['按这个打','再想想','自己打'])
+            return tee_reply(body+'就按这个方案打吗？',choices=['按这个打','再想想','自己打'])
         c.pop('suggestion',None);j['last_consultation']=copy.deepcopy(c);j.pop('consultation',None)
         if p.get('_dialogue_v70') and offer['text'].startswith('目前没有可确认的保守落区'):
-            return result('地图还不能确认这洞的开球落区。你看得到球道中间哪一段宽、能避开障碍？可以说“球道中间约200码可用”，我按你的Carry帮你选杆。')
-        return result(offer['text'])
+            return tee_reply('地图还不能确认这洞的开球落区。你看得到球道中间哪一段宽、能避开障碍？可以说“球道中间约200码可用”，我按你的Carry帮你选杆。')
+        return tee_reply(offer['text'])
     def tee_brief(a,manual=False):
         if j.get('quiet') or j.get('tee_briefing_disabled') or fact_value(s,'context.preparing') is True:return ''
         key=str(a['hole'])+':'+str(a['course_evidence'])
@@ -443,6 +555,19 @@ def _apply_journey(s,p,seq,now):
             execution_reply=save_execution(s,p)
             if execution_reply:return result(execution_reply)
         if route['domain']=='score':return delegate(dict(p,type='voice',text=route['normalized_text'],original_text=text))
+        if route['domain']=='score_unclear':
+            session=s.get('session',{})
+            if session.get('draft') or any(q.get('status')=='pending' for q in s.get('questions',{}).values()):
+                return result('刚才的成绩没听清。你可以重报洞号和总杆数。')
+            if j.get('quiet') or fact_value(s,'context.quiet',False) or fact_value(s,'context.preparing',False):
+                return result()
+            hole=route['hole']
+            qid=p['event_id']+'-score-total'
+            reduce(s,'question',{'id':qid,'target':f'holes.{hole}','field':'total','deps':{}},seq,now)
+            s['version']=base
+            session['question_id']=qid
+            session['score_target']=hole
+            return result(f'刚才的成绩没听清，第{hole}洞一共打了几杆？',question_id=qid)
         if route['domain']=='score_control':
             if text in ('确认','确认记录','确认保存') and not s.get('session',{}).get('draft'):return result('目前没有待确认的成绩。')
             if text in ('撤销上一条记分','撤销刚才的记分') and not s.get('session',{}).get('last_patch'):return result('目前没有可撤销的成绩记录。')
@@ -522,8 +647,8 @@ def _apply_journey(s,p,seq,now):
                         return result(f'按你确认的球道落区，可考虑{club["label"]}，瞄这一段球道中央。给落地滚动留空间。')
                     return result('现有球杆的Carry没有贴近你报的落区。再看一处更近的宽阔落点，或报一支你能控制距离的球杆。')
             c=j.get('consultation') or {}
-            wedge=re.fullmatch(r'(?:好[，, ]*)?(?:就|用|选)?(4[6-9]|5[0-9]|6[0-4])度(?:杆)?[。！!]?',text)
-            if wedge and (c.get('phase')=='plan' or j.get('last_short_game_advice')):
+            wedge=re.fullmatch(r'(?:好[，, ]*)?(?:就|用|选)?(4[6-9]|5[0-9]|6[0-4])(?:度(?:杆)?)?[。！!]?',text)
+            if wedge and (c.get('phase')=='plan' or ('度' in text and j.get('last_short_game_advice'))):
                 chosen=dict(club=wedge[1]+'度杆',target='green',wording='打这杆')
             if re.fullmatch(r'(?:这杆|这一杆)?怎么推[？?]?',text):
                 from lie_position import infer
@@ -543,6 +668,11 @@ def _apply_journey(s,p,seq,now):
         if p.get('_dialogue_v69') and not chosen and live_plan:
             short=re.fullmatch(r'(?:用|选)?([2-9二两三四五六七八九](?:号铁|铁))(?:吧)?[。！!]?',text)
             if short:chosen=approach_selection(short[1]+'打向果岭中央')
+        if not chosen and live_plan:
+            from club_selection import selection as choose_club
+            choice=choose_club(text,hybrid=True,expanded=True)
+            if choice and choice['key'] in ('hybrid','three_wood','five_wood'):
+                chosen=dict(club=choice['label'],target='green',wording='按刚才的攻果岭方案打')
         if chosen:
             from tee_strategy import analyze as current_tee
             tee=current_tee(s,now)
@@ -583,8 +713,56 @@ def _apply_journey(s,p,seq,now):
             try:return delegate(dict(p,type='voice',text='还有多少'+requested_unit))
             except StateError:return result('当前定位与球洞或果岭目标还无法唯一对应，确认位置后我再报距离。')
         from club_selection import selection,same_label
-        picked=selection(text,hybrid=p.get('_par_five_v95',False))
+        picked=selection(text,hybrid=p.get('_par_five_v95',False),expanded=p.get('_par_five_bag_v101',False))
         consult=j.get('consultation')
+        if consult and consult.get('phase')=='tee_club' and consult.get('requested_club')=='par_five_bag' and text!='自己打':
+            from tee_strategy import PAR_FIVE_BAG,analyze
+            key=consult['bag_club']
+            label=dict(PAR_FIVE_BAG)[key]
+            answer=text.strip().rstrip('。！!')
+            choices=['没有','不知道','跳过','自己打']
+            if answer in ('没有','没有这支杆'):
+                absent=j['profile'].get('absent_fairway_clubs',{}).get('value',[])
+                remember('absent_fairway_clubs',list(dict.fromkeys([*absent,key])))
+            elif answer in ('不知道','不清楚','跳过'):
+                consult.setdefault('bag_skips',[]).append(key)
+            else:
+                report=re.fullmatch(r'(.*?)\s*(?:Carry|落地)?\s*(\d{2,3})\s*(码|米)?',answer,re.I)
+                club=selection(report[1],hybrid=True,expanded=True) if report and report[1].strip() else None
+                if not report or (report[1].strip() and (not club or club['key']!=key)):
+                    return result(f'有的话，告诉我{label}的Carry，也可以说没有或跳过。',choices=choices)
+                distance=int(report[2]);require(10<=distance<=400,'distance outside prototype range')
+                unit=report[3] or j['profile'].get('units',{}).get('value','码')
+                remember(key,{'distance':distance,'units':unit,'distance_type':'carry',
+                              'club_name':club['label'] if club else label})
+            fresh=analyze(s,now)
+            if not fresh:
+                consult['phase']='tee_refresh'
+                return result('已记下。更新发球台定位后，我们继续。',choices=['自己打'])
+            return tee_offer(consult,fresh)
+        if (p.get('_ask_fairway_carry_v98') and consult and consult.get('phase')=='tee_club'
+                and consult.get('requested_club')=='par_five_fairway'):
+            skip=text.rstrip('。！!') in ('不知道','没有这支杆','跳过','没有','不清楚')
+            if not skip and text!='自己打':
+                report=re.fullmatch(r'(.*?)\s*(?:Carry|落地)?\s*(\d{2,3})\s*(码|米)?[。！!]?',text,re.I)
+                club=selection(report[1],hybrid=True) if report and report[1].strip() else consult.get('fairway_club')
+                if picked and picked['key'] in ('three_wood','hybrid','long_iron') and not report:
+                    consult['fairway_club']=picked
+                    return result(picked['label']+'在球道上的Carry大概多少？',choices=['不知道','跳过','自己打'])
+                if not report or not club or club['key'] not in ('three_wood','hybrid','long_iron'):
+                    return result('请一起报球杆和Carry，例如「3号木235码」，也可以说跳过。',choices=['不知道','跳过','自己打'])
+                distance=int(report[2]);require(10<=distance<=400,'distance outside prototype range')
+                unit=report[3] or j['profile'].get('units',{}).get('value','码')
+                remember(club['key'],{'distance':distance,'units':unit,'distance_type':'carry','club_name':club['label']})
+                consult.pop('fairway_club',None)
+                from tee_strategy import analyze
+                fresh=analyze(s,now)
+                if fresh:
+                    return tee_offer(consult,fresh)
+                consult['phase']='tee_refresh'
+                return result('球道杆距已记下。更新发球台定位后，我再比较两上和三上。',choices=['自己打'])
+            if skip:
+                text=text.rstrip('。！!')
         if picked:
             from tee_strategy import analyze
             current=analyze(s,now)
@@ -597,6 +775,30 @@ def _apply_journey(s,p,seq,now):
                 if not consult or not consult.get('phase','').startswith('tee_'):
                     consult={'phase':'tee_intent','analysis':current};j['consultation']=consult
                 consult['selection_report']={'club':picked['label'],'source':'user_report','event_id':p['event_id']}
+                offered=(consult.get('last_offer') or {}).get('options',[])
+                if (p.get('_shared_tee_club_v103') and current and consult.get('phase')=='tee_commit'
+                        and len(offered)>1 and all(same_label(picked['label'],option['club']) for option in offered)):
+                    from tee_strategy import same_target
+                    from shot_evidence import haversine
+                    refreshed=tee_proposal(consult,current,picked)
+                    options=refreshed['options']
+                    if len(options)==len(offered) and all(same_target(old,new) for old,new in zip(offered,options)):
+                        first,second=options
+                        same_aim=(first['target']==second['target']
+                                  and haversine(first['aim_point'],second['aim_point'])<=3)
+                        consult['selected_club']=picked
+                        consult['last_offer']=refreshed
+                        choices=['两上方案','三上方案','自己打']
+                        if not same_aim:
+                            return result(f"好，两套都用{picked['label']}，瞄准点各有不同。你想走两上还是三上？",choices=choices)
+                        if consult.get('shared_tee_club')!=picked:
+                            consult['shared_tee_club']=picked
+                            j.setdefault('player_decisions',[]).append({
+                                'club':first['club'],'target':first['target'],'hole':first['hole'],
+                                'source':'user_report','event_id':p['event_id'],
+                                'type':'decision_commitment','execution_confirmed':False,
+                            })
+                        return result(f"好，开球用{picked['label']}，瞄{first['target']}。两上还是三上，可以等开球落定再决定。",choices=choices)
                 if consult.get('phase')=='tee_commit' and same_label(picked['label'],consult.get('suggestion',{}).get('club','')):
                     consult['selected_club']=picked
                     if current:
@@ -644,6 +846,8 @@ def _apply_journey(s,p,seq,now):
                 if not c or not c.get('phase','').startswith('tee_'):
                     if c:j['last_consultation']=copy.deepcopy(c);j['last_consultation']['status']='superseded_by_tee_scene'
                     c={'phase':'tee_intent','analysis':current_tee};j['consultation']=c
+                if p.get('_par_five_bag_v101') and current_tee['par']==5:
+                    c['collect_par_five_bag']=True
                 return tee_offer(c,current_tee)
             if c and c['phase'].startswith('tee_'):
                 from tee_strategy import analyze
@@ -708,6 +912,8 @@ def _apply_journey(s,p,seq,now):
                         c.setdefault('unavailable_clubs',[]).append(key)
                     else:
                         labels=r'(?:[2-7二两三四五六七]号?)?(?:铁木杆|混合杆)' if key=='hybrid' else r'一号木|1号木|3号木|三号木|[2-7](?:号铁|铁)|七号铁|七铁|长铁杆'
+                        if key in ('five_wood','iron3','iron4'):
+                            labels={'five_wood':r'[5五]号?木','iron3':r'[3三]号?铁','iron4':r'[4四]号?铁'}[key]
                         m=re.fullmatch(r'(?:('+labels+r')[，,：: ]*)?(?:Carry|carry|落地)?\s*(\d{2,3})(码|米)?',text)
                         if not m:return result('只需告诉我这支杆的Carry，也可以说不知道或跳过。',choices=['不知道','没有这支杆','跳过','自己打'])
                         if (key=='driver' and m[1] not in (None,'一号木','1号木')) or (key=='three_wood' and m[1] not in (None,'3号木','三号木')) or (key=='seven' and m[1] not in (None,'7号铁','7铁','七号铁','七铁')) or (key=='long_iron' and m[1] in ('一号木','1号木','3号木','三号木','7号铁','7铁','七号铁','七铁')):
@@ -729,14 +935,26 @@ def _apply_journey(s,p,seq,now):
                 if c['phase']=='tee_intent':
                     if any(word in text for word in ('稳','保守','进攻','积极')):c['player_intent']=text
                     return tee_offer(c,a)
-                if text!='按这个打':c['phase']='tee_intent';return result('好，这一洞你现在更想怎么处理？')
-                checked=tee_proposal(c,a,c.get('selected_club'))
-                updated=checked['options'][0] if checked['options'] else None
+                offered=(c.get('last_offer') or {}).get('options',[])
                 old=c.get('suggestion',{})
+                if len(offered)>1:
+                    pick=re.fullmatch(r'(?:我)?(?:要|选|走)?([两二三23])上(?:方案)?[。！!]?',text)
+                    if not pick:
+                        return result('你想走两上还是三上？',choices=['两上方案','三上方案','自己打'])
+                    plan='three' if pick[1] in ('三','3') else 'two'
+                    old=next(option for option in offered if option['par_plan']==plan)
+                elif text!='按这个打':
+                    c['phase']='tee_intent';return result('好，这一洞你现在更想怎么处理？')
+                checked=tee_proposal(c,a,c.get('selected_club'))
+                updated=next((option for option in checked['options']
+                              if option.get('par_plan')==old.get('par_plan')),None)
                 if not same_target(old,updated) or updated.get('strategy')!=old.get('strategy'):
                     return tee_offer(c,a)
                 c['suggestion']=updated
                 c['decision']=copy.deepcopy(c['suggestion']);j['last_consultation']=copy.deepcopy(c);j.pop('consultation',None)
+                plan_name={'two':'两上方案','three':'三上方案'}.get(c['decision'].get('par_plan'))
+                if plan_name:
+                    return result(f"好，走{plan_name}。先用{c['decision']['club']}瞄{c['decision']['target']}，开球落定后再确认第二杆。")
                 return result('按你确认的'+c['decision']['club']+'、'+c['decision']['target']+'目标来。实际执行等你报告，不自动记作击球。')
             if c['phase']=='intent':
                 c['player_intent']=text;c['phase']='ball'
@@ -758,6 +976,18 @@ def _apply_journey(s,p,seq,now):
                 c['lie_report']=text;c['lie_evidence']={'label':text,'source':'user_report','event_id':p['event_id']}
                 return open_plan(c)
             if c['phase']=='plan':
+                routes=c.get('strategy_assessment',{}).get('route_choices',{})
+                route_match=re.fullmatch(r'(?:好|好的)?[，,\s]*(?:就|选|走)?(两上|三上)(?:方案)?[。！! ]*',text)
+                if routes and route_match:
+                    if c.get('position_version') is not None and __import__('green_requests').position_changed(s,c,now):
+                        return result('球位已变化，请重新问这杆怎么打。')
+                    selected=routes['attack' if route_match[1]=='两上' else 'layup']
+                    c['selected_route']=route_match[1]
+                    from ball_outcome import reported_penalties
+                    name=route_match[1]
+                    if reported_penalties(s,fact_value(s,'context.active_hole')):
+                        name='直接攻果岭' if name=='两上' else '过渡后攻果岭'
+                    return result('好，采用刚才的'+name+'方案。'+selected+'这杆准备用哪支杆？')
                 if __import__('short_game').question(text):return result('这是在询问打法，我不会把它记成你的决定。刚才的方案先保留。')
                 if not __import__('short_game').explicit_plan(text):return result('刚才的打法方案先保留，这句话不记成击球决定。')
                 if (c.get('position_version') is not None and __import__('green_requests').position_changed(s,c,now)):
@@ -835,7 +1065,7 @@ def demo_course():
 
 
 def reduce_journey(s,p,seq,now):
-    if p.get('protocol_version') in (54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96):
+    if p.get('protocol_version') in (54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78,79,80,81,82,83,84,85,86,87,88,89,90,91,92,93,94,95,96,97,98,99,100,101,102,103,104,105,106,107):
         from journey_style_preferences import reduce_journey as styles
         return styles(s,p,seq,now)
     if p.get('protocol_version')==53:

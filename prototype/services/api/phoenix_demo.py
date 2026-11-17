@@ -15,7 +15,20 @@ def course():return copy.deepcopy(_asset())
 def preview(number,snapshot=None):
  data=snapshot or _asset()
  h=next(h for h in data['holes'] if h['number']==number)
- return {'name':NAME,'hole':number,'source_name':h['source_name'],'par':h['par'],'published_yardage':h['published_yardage'],'positions':h['simulation_positions'],'paths':h['display_paths'],'source_sha256':data['source_sha256'],'bounds':h['bbox']}
+ result={'name':NAME,'hole':number,'source_name':h['source_name'],'par':h['par'],'published_yardage':h['published_yardage'],'positions':h['simulation_positions'],'paths':h['display_paths'],'source_sha256':data['source_sha256'],'bounds':h['bbox']}
+ if (data.get('course_id')==ID and data.get('reference_simulation') is True
+     and number==3 and h.get('source_hole_id')==475521):
+  # Temporary display fixtures. Colours and locations are not course survey data.
+  result['test_stakes']=[
+   {'kind':kind,'label':label,'points':[{'longitude':lon,'latitude':lat} for lon,lat in points]}
+   for kind,label,points in (
+    ('white','白桩 · 开球模拟OB',[(114.15077,22.70082),(114.15075,22.70111),(114.15071,22.70139)]),
+    ('white','白桩 · 第二杆右侧模拟OB',[(114.14963,22.70243),(114.14938,22.70254),(114.14913,22.70265)]),
+    ('yellow','黄桩 · 模拟罚杆区',[(114.1504069,22.7008079),(114.1506065,22.7002749)]),
+    ('red','红桩 · 模拟罚杆区',[(114.1489034,22.7024749),(114.1490543,22.702378),(114.1491659,22.7023802)]),
+   )
+  ]
+ return result
 
 def generate(normalized,route):
  """Derive demo geometry from real vertices. Source paths stay unchanged in display_paths."""

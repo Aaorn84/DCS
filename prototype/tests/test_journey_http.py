@@ -42,4 +42,34 @@ class JourneyHTTPTests(unittest.TestCase):
   code,d=self.msg('no problem');self.assertEqual(code,200);self.assertTrue(d['journey']['profile']['proactive']['value']);self.assertEqual(d['journey']['stage'],'shot_recording')
   code,d=self.msg('我不习惯使用码，我更习惯用米');self.assertEqual(code,200);self.assertEqual(d['journey']['distance_unit'],'米');self.assertEqual(d['journey']['stage'],'shot_recording')
   self.assertEqual(self.call('/journey',{'action':'snapshot'},self.token)[1],self.call('/journey',{'action':'replay'},self.token)[1])
+
+ def test_ball_rule_relief_score_and_replay(self):
+  from datetime import datetime,timedelta,timezone
+  from services.api.phoenix_demo import preview
+  def turn(text=None,**extra):
+   self.n+=1
+   stamp=(datetime(2026,11,18,tzinfo=timezone.utc)+timedelta(seconds=self.n*8)).isoformat()
+   event=dict(type='message' if text is not None else extra.pop('type'),event_id='rules'+str(self.n),observed_at=stamp,**extra)
+   if text is not None:event['text']=text
+   code,data=self.call('/journey',dict(action='event',operation_id=event['event_id'],event=event),self.token)
+   self.assertEqual(200,code,data)
+   return data
+  for word in ('可以记住','球友','好','好','260','160','偏右','东莞凤凰山（A+B蓝台演示）','蓝台','3','轻松打球','开始球局'):
+   turn(word)
+  turn(type='gps',data=dict(preview(3)['positions']['tee'],simulation_source='map_click'))
+  turn('确认下水')
+  turn('红桩')
+  turn('向后延线抛球')
+  turn('已确认最后越界点')
+  turn('已在合法位置抛球')
+  turn('球停在救济区内')
+  turn('就在这里完成救济')
+  data=turn('第3洞4杆，2推，1罚杆')
+  self.assertEqual(1,data['journey']['round_records']['score_draft']['penalties'])
+  self.assertEqual([1,3,4],[r['stroke_number'] for r in data['journey']['round_records']['clubs']])
+  self.assertTrue(turn('确认')['result']['saved'])
+  data=turn('撤销上次罚杆')
+  self.assertIn('重新确认',data['result']['text'])
+  self.assertEqual('penalties',data['journey']['round_records']['score_draft']['awaiting'])
+  self.assertEqual(self.call('/journey',{'action':'snapshot'},self.token)[1],self.call('/journey',{'action':'replay'},self.token)[1])
 if __name__=='__main__':unittest.main()
