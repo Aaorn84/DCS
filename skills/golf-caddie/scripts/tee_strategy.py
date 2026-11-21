@@ -1,6 +1,7 @@
 """Bounded tee facts and conditional options; never equates carry with GPS displacement."""
+from tee_geometry import planning_geometry_cache
 from datetime import datetime
-import math
+import math,re
 from shot_evidence import haversine
 from gps_transition import inside,POLICY
 from round_state import fact_value
@@ -145,10 +146,11 @@ def arrival(j,a,timestamp):
     return tr['fixes']>=POLICY['min_fixes'] and timestamp-tr['since']>=POLICY['dwell_seconds']
 
 
-def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=None, *, mapped_fallback=False, par_five_plan=False, carry_crossing=False, compare_par_five=False, ask_fairway_carry=False, allow_roll_in=False, compare_safety=False):
+@planning_geometry_cache
+def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=None, *, mapped_fallback=False, par_five_plan=False, carry_crossing=False, compare_par_five=False, ask_fairway_carry=False, allow_roll_in=False, compare_safety=False, compare_next_shot=False):
     offer = proposal(analysis, intent, unit, unavailable, selected)
     plan_three = par_five_plan and analysis['par'] == 5
-    if not mapped_fallback or (offer['options'] and not plan_three) or analysis['par'] not in (4, 5):
+    if not mapped_fallback or (offer['options'] and not plan_three and not selected and not compare_next_shot) or analysis['par'] not in (4, 5):
         return offer
     if selected:
         from club_selection import same_label
@@ -162,13 +164,18 @@ def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=N
     targets = tee_targets(state, analysis, clubs, allow_crossing=plan_three or carry_crossing)
     if not targets:
         return offer
+    if compare_next_shot and not selected and analysis['par']==4:
+        from tee_next_shot_options import compare
+        comparison=compare(state,analysis,targets,unit)
+        if comparison:return comparison
+    from hole_history import weight as history_weight,note as history_note
+    history_origin=fact_value(state,'context.device_position')
     aggressive = bool(intent and any(word in intent for word in ('进攻', '进取', '积极')))
-    choice = max(targets, key=lambda row: (row['carry_yards'], row['width_m']) if aggressive
-                 else (row['width_m'], row['carry_yards']))
+    choice = max(targets, key=lambda row: (-history_weight(state,analysis['hole'],history_origin,row['aim_point'],row['club']),)+((row['carry_yards'],row['width_m']) if aggressive else (row['width_m'],row['carry_yards'])))
     if plan_three:
-        routes = par_five_routes(state, analysis, targets)
+        routes = par_five_routes(state, analysis, targets,risk_first=compare_next_shot)
         if routes:
-            choice = min(routes, key=lambda row: (row['leave_error'], row['crossings'],
+            choice = min(routes,key=lambda row:row['risk_rank']) if compare_next_shot else min(routes, key=lambda row: (row['leave_error'], row['crossings'],
                                                   -min(row['width_m'], row['layup']['width_m']),
                                                   -row['carry_yards']))
     target = aiming_text(choice, unit)
@@ -182,10 +189,18 @@ def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=N
     if choice.get('layup'):
         layup = choice['layup']
         second = aiming_text(layup, unit)
-        text += (f"从这个落点，第二杆可瞄{second}，目标Carry约{round(layup['carry_yards']*scale/5)*5}{unit}，"
-                 f"第三杆到果岭参考点约{round(choice['leave_yards']*scale/5)*5}{unit}。")
-        text += crossing_text(layup, unit)
-        text += '开球落定后，按实际球位和滚动空间重新选第二杆。'
+        if compare_next_shot:
+            profile=state['journey'].get('profile',{})
+            text+=f"第二杆过渡：从上述开球预测落点出发，瞄{second}，目标Carry约{round(layup['carry_yards']*scale/5)*5}{unit}。"
+            text+=crossing_text(layup,unit)+layup_club_text(profile,layup['carry_yards'],unit,allow_woods=choice.get('layup_allow_woods',False))
+            text+=third_shot_text(profile,choice['leave_yards'],unit)
+            text+='这几段按预测Carry落点之间的地图直线计算，未计滚动；每杆落定后重新确认。'
+        else:
+            text += (f"从这个落点，第二杆可瞄{second}，目标Carry约{round(layup['carry_yards']*scale/5)*5}{unit}，"
+                     f"第三杆到果岭参考点约{round(choice['leave_yards']*scale/5)*5}{unit}。")
+            text += crossing_text(layup, unit)
+            text += layup_club_text(state['journey'].get('profile',{}),layup['carry_yards'],unit,allow_woods=choice.get('layup_allow_woods',False))
+            text += '开球落定后，按实际球位和滚动空间重新选第二杆。'
     elif plan_three:
         text += '第二杆等开球落定后，再核对过渡落区和第三杆留距。'
     elif choice['crossing_m'] is None:
@@ -198,14 +213,53 @@ def suggest(state, analysis, intent=None, unit='码', unavailable=(), selected=N
     if choice.get('layup'):
         option['layup'] = dict(aim_point=layup['aim_point'], carry_yards=layup['carry_yards'],
                                leave_yards=choice['leave_yards'])
+    if compare_next_shot:
+        from hole_history import selection_note
+        text+=selection_note(state,analysis['hole'],history_origin,targets,choice)
     if plan_three and compare_par_five:
         return compare_par_routes(state, analysis, targets, text, option, unit,
                                   ask_fairway_carry=ask_fairway_carry and 'par_five_fairway' not in unavailable,
-                                  allow_roll_in=allow_roll_in,compare_safety=compare_safety)
+                                  allow_roll_in=allow_roll_in,compare_safety=compare_safety,evaluate_geometry=compare_next_shot)
     return {'text': text, 'continuation_text': text, 'options': [option]}
 
 
-def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit, *, ask_fairway_carry=False, allow_roll_in=False, compare_safety=False):
+def fairway_green_clubs(profile,known,remaining):
+    from iron_estimates import iron_table,pitching_wedge
+    from club_selection import same_label
+    result=[(key,dict(club)) for key,club in known if key!='driver']
+    table=iron_table(profile)
+    for n,value in table.items():
+        label=f'{n}号铁'
+        if n<5 or any(same_label(label,club['label']) for key,club in result):continue
+        result.append((f'iron-estimate-{n}',dict(label=label,carry_yards=value['carry_yards'],source=value['source'])))
+    pw=pitching_wedge(profile,table)
+    if pw and not any(club['label']=='P杆' for key,club in result):result.append(('pitching_wedge',dict(label='P杆',**pw)))
+    for loft,value in profile.get('lofted_wedge_ranges',{}).get('value',{}).items():
+        divisor=.9144 if value['units']=='米' else 1
+        low,high=value['low']/divisor,value['high']/divisor
+        carry=min(high,max(low,remaining))
+        if carry>0:result.append((f'wedge-{loft}',dict(label=str(loft)+'度杆',carry_yards=carry,source='user_report',range_based=True)))
+    controlled=[]
+    for key,club in result:
+        if (club['label']=='P杆' or re.fullmatch(r'[5-9]号铁|\d{2}度杆',club['label'])) and not club.get('range_based') and 0<club['carry_yards']-remaining<=15:
+            controlled.append(('control-'+key,dict(club,carry_yards=remaining,nominal_carry_yards=club['carry_yards'],requires_control=True)))
+    return result+controlled
+
+
+def third_shot_text(profile,remaining,unit):
+    scale=.9144 if unit=='米' else 1
+    clubs=fairway_green_clubs(profile,list(reported_carry_clubs(profile).items()),remaining)
+    matching=[club for key,club in clubs if abs(club['carry_yards']-remaining)<=5 and not club.get('requires_control')]
+    base=f'第三杆：从该预测落点朝果岭参考方向，直线约{round(remaining*scale/5)*5}{unit}。'
+    if matching:
+        club=min(matching,key=lambda club:(not club.get('range_based'),abs(club['carry_yards']-remaining)))
+        basis='（杆距暂估，需核对）' if club.get('source','user_report')!='user_report' else ''
+        return base+f"可考虑{club['label']}{basis}，具体落点和Carry到球旁再核对。"
+    return base+'这段距离的球杆和控制挥幅还需确认，不能直接套用全挥Carry。'
+
+
+@planning_geometry_cache
+def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit, *, ask_fairway_carry=False, allow_roll_in=False, compare_safety=False, evaluate_geometry=False):
     from tee_geometry import MAX_ROLL_IN_YARDS,ROLL_IN_CLUBS,tee_targets
     course=state['evidence'][analysis['course_evidence']]['data']
     hole=next(h for h in course['holes'] if h['number']==analysis['hole'])
@@ -215,6 +269,15 @@ def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit,
     def distance(yards):
         return f'{round(yards*scale)}{unit}'
 
+    def basis_note(tee):
+        if not evaluate_geometry or not card:return ''
+        origin=fact_value(state,'context.device_position')
+        green_reference=next(o for o in hole['objects'] if o['kind']=='green_center')
+        if not origin:return ''
+        route=(haversine(origin,tee['aim_point'])+haversine(tee['aim_point'],green_reference))/.9144
+        if abs(route-card)<max(50,card*.15):return ''
+        return f'距离口径：本洞公布{distance(card)}，这条预测路线的地图直线段合计约{distance(round(route/5)*5)}，差异较大，可能涉及截弯或参考点差异；上述是地图候选，需核对发球台、果岭参考点和实际可打线路。'
+
     # Driver carry is reported from the tee. Do not reuse it as a fairway carry.
     clubs=[(key,club) for key,club in analysis['clubs'].items() if key!='driver']
     budget=(max(tee['carry_yards'] for tee in targets)+max(c['carry_yards'] for _,c in clubs)) if clubs else None
@@ -222,29 +285,52 @@ def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit,
     if allow_roll_in:
         roll_budget=max((tee['carry_yards']+club['carry_yards']+MAX_ROLL_IN_YARDS
                          for tee in targets for key,club in clubs if key in ROLL_IN_CLUBS),default=None)
+    # Before searching green landings, apply the requested card-length gate.
+    # Distinct clubs only; driver carry is never reused for a fairway shot.
+    pairs=[first['carry_yards']+second['carry_yards']
+           for first_key,first in analysis['clubs'].items()
+           for second_key,second in clubs if first_key!=second_key]
+    longest_pair=max(pairs,default=None)
+    distance_block=(evaluate_geometry and type(card) in (int,float) and card>10
+                    and longest_pair is not None and longest_pair<card-10)
     attack=None
     if budget is None:
         reason='还缺可用于第二杆的球道杆距。'
-    elif card and max(budget,roll_budget or 0)<card:
+    elif distance_block:
+        reason=(f'两支最远可用球杆的已知Carry合计约{distance(longest_pair)}，'
+                f'不足本洞公布长度{distance(card)}减10码后的{distance(card-10)}。'
+                '按现有杆距暂无法两上，本洞直接按三上规划。')
+    elif not evaluate_geometry and card and max(budget,roll_budget or 0)<card:
         reason=f'候选开球杆与球道最长杆的已知Carry合计最多{distance(budget)}，低于球洞公布长度{distance(card)}。按现有杆距先走三上。'
     else:
         for tee in targets:
-            green_targets=tee_targets(state,analysis,clubs,origin=tee['aim_point'],
+            remaining=haversine(tee['aim_point'],next(o for o in hole['objects'] if o['kind']=='green_center'))/.9144
+            current_clubs=fairway_green_clubs(state['journey'].get('profile',{}),clubs,remaining) if evaluate_geometry else clubs
+            green_targets=tee_targets(state,analysis,current_clubs,origin=tee['aim_point'],
                                       allow_crossing=True,surface='green')
             if allow_roll_in:
-                eligible=[(key,club) for key,club in clubs
-                          if not card or tee['carry_yards']+club['carry_yards']+MAX_ROLL_IN_YARDS>=card]
+                eligible=[(key,club) for key,club in current_clubs
+                          if evaluate_geometry or not card or tee['carry_yards']+club['carry_yards']+MAX_ROLL_IN_YARDS>=card]
                 green_targets+=tee_targets(state,analysis,eligible,origin=tee['aim_point'],
                                            allow_crossing=True,surface='green',roll_in=True)
             for green in green_targets:
                 allowance=MAX_ROLL_IN_YARDS if green['club_key'] in ROLL_IN_CLUBS else 0
-                if allow_roll_in and card and tee['carry_yards']+green['carry_yards']+allowance<card:
+                if not evaluate_geometry and allow_roll_in and card and tee['carry_yards']+green['carry_yards']+allowance<card:
                     continue
-                rank=(() if not allow_roll_in else (not green.get('roll_yards'),))+(sum(shot['crossing_m'] is None for shot in (tee,green)),
+                if evaluate_geometry:green['club_basis']=dict(current_clubs)[green['club_key']]
+                rank=(() if not evaluate_geometry else (not green.get('club_basis',{}).get('requires_control'),))+( () if not allow_roll_in else (not green.get('roll_yards'),))+(sum(shot['crossing_m'] is None for shot in (tee,green)),
                       min(tee['width_m'],green['width_m']),green['width_m'])
+                if evaluate_geometry:
+                    from hole_history import weight as history_weight
+                    old_risk=history_weight(state,analysis['hole'],fact_value(state,'context.device_position'),tee['aim_point'],tee['club'])+history_weight(state,analysis['hole'],tee['aim_point'],green['aim_point'],green['club'])
+                    rank=(-old_risk,)+rank
                 if attack is None or rank>attack[0]:
                     attack=(rank,tee,green)
         reason='从候选开球落点出发，已知球道杆距还没有匹配到兼顾过障碍和停球空间的果岭落区。'
+        if evaluate_geometry:
+            green_reference=next(o for o in hole['objects'] if o['kind']=='green_center')
+            left=[haversine(tee['aim_point'],green_reference)/.9144 for tee in targets]
+            reason=f'候选开球落点到果岭参考点直线约{distance(min(left))}到{distance(max(left))}；已知杆距及条件控距仍未匹配到兼顾飞越和停球空间的果岭落点。'
     if attack is None:
         if ask_fairway_carry and not any(key in ('three_wood','five_wood','hybrid','iron3','iron4','long_iron') for key,_ in clubs):
             question='你在球道上能稳定用的最长一支杆是什么，Carry大概多少？例如「3号木235码」或「4号铁木杆200码」。不知道可以跳过。'
@@ -253,9 +339,13 @@ def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit,
                 _,fairway=max(clubs,key=lambda entry:entry[1]['carry_yards'])
                 question=(f"目前只有{tee['club']}和{fairway['label']}可用于这组估算，Carry合计{distance(budget)}。"
                           +question)
+            layup_text+=basis_note(layup_option)
             return {'text':layup_text,'continuation_text':layup_text,'options':[layup_option],
                     'missing_club':'par_five_fairway','question':question}
-        text=layup_text+'两上评估：'+reason
+        if distance_block:
+            text='三上方案：'+layup_text+reason
+            return {'text':text,'continuation_text':text,'options':[dict(layup_option,par_plan='three')]}
+        text=layup_text+'两上评估：'+reason+basis_note(layup_option)
         return {'text':text,'continuation_text':text,'options':[layup_option]}
 
     _,tee,green=attack
@@ -268,6 +358,14 @@ def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit,
           +roll_in_text(green,unit)
           +crossing_text(green,unit)
           +'开球落定后，再按球位和滚动空间确认是否攻果岭。')
+    if evaluate_geometry:
+        from hole_history import note as history_note
+        text+=history_note(state,analysis['hole'],fact_value(state,'context.device_position'),tee['aim_point'],tee['club'])
+        text+=history_note(state,analysis['hole'],tee['aim_point'],green['aim_point'],green['club'])
+    if evaluate_geometry:
+        basis=green.get('club_basis',{})
+        if basis.get('source','user_report')!='user_report':text+='这支杆的Carry按7号铁暂估，需按你的实际杆距核对。'
+        if basis.get('requires_control'):text+=f"常规Carry约{distance(basis['nominal_carry_yards'])}，需要控制到上述目标；仅在熟悉该挥幅时采用。"
     if compare_safety:
         space=green_landing_space(state,analysis,tee['aim_point'],green)
         text+=space_text(space,'果岭入口' if green.get('roll_yards') else '果岭落区',unit)
@@ -281,12 +379,14 @@ def compare_par_routes(state, analysis, targets, layup_text, layup_option, unit,
                                      **({'roll_yards':green['roll_yards']} if green.get('roll_yards') else {})))
     attack_option.pop('layup',None)
     if not layup_option.get('layup'):
+        text+=basis_note(tee)
         return {'text':text,'continuation_text':text,'options':[attack_option]}
     layup_option=dict(layup_option,par_plan='three')
-    text+='\n三上方案：'+layup_text
+    text+='\n三上方案：'+layup_text+basis_note(tee)
     return {'text':text,'continuation_text':text,'options':[attack_option,layup_option]}
 
 
+@planning_geometry_cache
 def actual_position_roll_in(state, now, unit, *, compare_safety=False, direct=False):
     from lie_position import fresh_position
     from tee_geometry import tee_targets
@@ -296,10 +396,11 @@ def actual_position_roll_in(state, now, unit, *, compare_safety=False, direct=Fa
     analysis=dict(course_evidence=fact_value(state,'context.course_snapshot'),
                   hole=fact_value(state,'context.active_hole'))
     profile=state['journey'].get('profile',{})
-    clubs=reported_carry_clubs(profile)
+    clubs={key:club for key,club in reported_carry_clubs(profile).items() if key!='driver'}
     from iron_estimates import iron_table
     from club_selection import same_label
     for number,estimate in iron_table(profile).items():
+        if number<5 and estimate['source']!='user_report':continue
         label=f'{number}号铁'
         if not any(same_label(label,club['label']) for club in clubs.values()):
             clubs[f'estimated_iron_{number}']={
@@ -311,7 +412,8 @@ def actual_position_roll_in(state, now, unit, *, compare_safety=False, direct=Fa
         candidates=[candidate for candidate in candidates if candidate['club_key']!='driver']
     if not candidates:
         return None
-    target=min(candidates,key=lambda row:(row['crossing_m'] is not None,row.get('roll_yards',0),-row['width_m']))
+    from hole_history import weight as history_weight,note as history_note
+    target=min(candidates,key=lambda row:(row['crossing_m'] is not None,history_weight(state,analysis['hole'],origin['value'],row['aim_point'],row['club']),row.get('roll_yards',0),-row['width_m']))
     scale=.9144 if unit=='米' else 1
     offset=target['offset']
     aim=f"朝果岭参考方向{'右' if offset>0 else '左'}偏约{abs(offset)}度" if offset else '朝果岭参考点'
@@ -319,6 +421,7 @@ def actual_position_roll_in(state, now, unit, *, compare_safety=False, direct=Fa
           +roll_in_text(target,unit)+crossing_text(target,unit))
     if str(target['club_key']).startswith('estimated_iron_'):
         text+='这支铁杆的Carry按7号铁杆距暂估，现场按你的实际杆距确认。'
+    text+=history_note(state,analysis['hole'],origin['value'],target['aim_point'],target['club'])
     if not compare_safety:
         return {'text':text}
     space=green_landing_space(state,analysis,origin['value'],target)
@@ -357,39 +460,135 @@ def crossing_text(choice, unit):
     return f"沿这条线要飞越地图上的障碍，远沿约{far}{unit}，现场确认有飞越余量再打。"
 
 
-def par_five_routes(state, analysis, targets):
+@planning_geometry_cache
+def par_five_routes(state, analysis, targets, *, broad=False, risk_first=False):
     from tee_geometry import tee_targets
     journey = state['journey']
     course = state['evidence'][analysis['course_evidence']]['data']
     hole = next(h for h in course['holes'] if h['number'] == analysis['hole'])
     green = next(o for o in hole['objects'] if o['kind'] == 'green_center')
-    preference = journey['profile'].get('shot_style_preferences', {}).get('leave_distance')
-    if not preference:
-        from wedge_leave import suggested_leave
-        preference = suggested_leave(journey)
-    preferred = preference['value']/(.9144 if preference['unit'] == '米' else 1) if preference else 90
+    # Keep historic event replay stable; current planning never uses a
+    # preferred leave distance to filter or rank a route.
+    preferred=None
+    if not risk_first:
+        preference = journey['profile'].get('shot_style_preferences', {}).get('leave_distance')
+        if not preference:
+            from wedge_leave import suggested_leave
+            preference = suggested_leave(journey)
+        preferred = preference['value']/(.9144 if preference['unit'] == '米' else 1) if preference else 90
     max_layup = max((club['carry_yards'] for key, club in analysis['clubs'].items()
                      if key != 'driver'), default=220)
     routes = []
     for tee in targets:
         landing = tee['aim_point']
         remaining = haversine(landing, green)/.9144
-        nominal_layup = remaining-preferred
-        distances = [d for d in range(35, 221, 10) if d<=max_layup and abs(d-nominal_layup)<=35 and d<remaining-25]
+        nominal_layup = remaining-preferred if preferred is not None else None
+        distances = ([d for d in range(15,int(min(max_layup,remaining-5))+1,5)] if risk_first else
+                     [d for d in range(15,221,5) if d<=max_layup and d<remaining-5] if broad else
+                     [d for d in range(35,221,10) if d<=max_layup and abs(d-nominal_layup)<=35 and d<remaining-25])
         if not distances:
             continue
         layups = tee_targets(state, analysis, [(str(d), {'label':'', 'carry_yards':d}) for d in distances],
                              origin=landing, allow_crossing=True)
         for layup in layups:
             leave = haversine(layup['aim_point'], green)/.9144
-            if 25 <= leave < remaining-15:
-                routes.append(dict(tee, layup=layup, leave_yards=leave,
-                                   leave_error=max(0,abs(leave-preferred)-5),
-                                   crossings=sum(shot['crossing_m'] is not None for shot in (tee,layup))))
+            if (10 if broad or risk_first else 25) <= leave < remaining-(10 if broad or risk_first else 15):
+                row=dict(tee,layup=layup,leave_yards=leave,
+                         crossings=sum(shot['crossing_m'] is not None for shot in (tee,layup)))
+                if risk_first:
+                    preference=layup_club_policy(state,analysis,row)
+                    if preference is None:continue
+                    row['layup_allow_woods']=preference['allow_woods']
+                    row['layup_long_club']=preference['long_club']
+                    row['risk_rank']=layup_risk_rank(state,analysis,row)
+                else:row['leave_error']=max(0,abs(leave-preferred)-5)
+                routes.append(row)
     return routes
 
 
-def actual_position_layup(state, now, *, compare_safety=False):
+def layup_club_policy(state,analysis,row):
+    """Prefer mid irons; woods need a wide, deep landing with no mapped threats."""
+    from iron_estimates import iron_table
+    from tee_geometry import landing_space
+    profile=state['journey'].get('profile',{})
+    irons=iron_table(profile)
+    mid=max((c['carry_yards'] for n,c in irons.items() if 5<=n<=7),default=0)
+    nonwood=max([mid]+[c['carry_yards'] for k,c in analysis['clubs'].items() if k not in ('driver','three_wood','five_wood')])
+    carry=row['layup']['carry_yards']
+    if carry<=nonwood:return dict(allow_woods=False,long_club=bool(mid and carry>mid))
+    course=state['evidence'][analysis['course_evidence']]['data']
+    hole=next(h for h in course['holes'] if h['number']==analysis['hole'])
+    space=landing_space(hole,course.get('reference_simulation') is True,row['aim_point'],row['layup']['aim_point'],'fairway')
+    wide=(space['width_m']>=40*.9144 and space['depth_m']>=25*.9144
+          and row['layup'].get('crossing_m') is None
+          and not any(h['distance_m']<=25*.9144 for h in space['hazards']))
+    return dict(allow_woods=True,long_club=True) if wide else None
+
+
+def layup_risk_rank(state,analysis,row):
+    """Heuristic risk ordering; no habitual leave or inferred success odds."""
+    from tee_geometry import landing_space
+    course=state['evidence'][analysis['course_evidence']]['data']
+    hole=next(h for h in course['holes'] if h['number']==analysis['hole'])
+    green=next(o for o in hole['objects'] if o['kind']=='green_center')
+    origin=fact_value(state,'context.device_position') or row['aim_point']
+    first=landing_space(hole,course.get('reference_simulation') is True,origin,row['aim_point'],'fairway')
+    landing=landing_space(hole,course.get('reference_simulation') is True,row['aim_point'],row['layup']['aim_point'],'fairway')
+    approach=landing_space(hole,course.get('reference_simulation') is True,row['layup']['aim_point'],green,'green')
+    nearby=sum(h['kind'] in ('water','ob') and h['distance_m']<=15*.9144 for space in (first,landing) for h in space['hazards'])
+    capacity=max((club['carry_yards'] for key,club in analysis['clubs'].items() if key!='driver'),default=0)
+    uncovered=bool(capacity and row['leave_yards']>capacity)
+    width=min(row.get('width_m',landing['width_m']),landing['width_m'])
+    tight=max(0,25-width/.9144)
+    clearance_risk=0
+    for shot in (row,row['layup']):
+        if shot.get('crossing_m') is not None and shot.get('carry_yards'):
+            clearance=shot.get('low_yards',shot['carry_yards']-5)-shot['crossing_m']/.9144
+            clearance_risk+=max(0,15-clearance)
+    narrow=bool(approach['width_m'] and approach['width_m']<20*.9144) or sum(h['kind'] in ('bunker','water','ob') for h in approach['hazards'])>=2
+    # Compare the whole route: extra width beyond a usable landing area
+    # must not outweigh leaving a much longer approach. No preferred yardage.
+    approach_load=row['leave_yards']/max(1,capacity)
+    approach_risk=approach_load*(2 if narrow else 1)
+    landing_cost=tight/25+max(0,15-landing['depth_m']/.9144)/15
+    from hole_history import weight as history_weight
+    history=history_weight(state,analysis['hole'],origin,row['aim_point'],row.get('club'))+history_weight(state,analysis['hole'],row['aim_point'],row['layup']['aim_point'],row['layup'].get('club') or None)
+    route_cost=landing_cost+clearance_risk/15+approach_risk+history*.75
+    return (nearby,uncovered,int(row.get('layup_long_club',False)),route_cost,row['leave_yards'],
+            -min(width,30*.9144),-min(landing['depth_m'],20*.9144))
+
+
+def layup_club_text(profile,target_yards,unit,*,allow_woods=False):
+    """Choose adequate Carry for the mapped layup, without inventing control."""
+    from iron_estimates import iron_table,pitching_wedge
+    from club_selection import same_label
+    clubs=[dict(label=row['label'],low=row['carry_yards'],high=row['carry_yards'],estimated=False)
+           for key,row in reported_carry_clubs(profile).items() if key!='driver' and (allow_woods or key not in ('three_wood','five_wood'))]
+    table=iron_table(profile)
+    for n,row in table.items():
+        if n<5 and row['source']!='user_report':continue
+        label=f'{n}号铁'
+        if not any(same_label(label,c['label']) for c in clubs):
+            clubs.append(dict(label=label,low=row['carry_yards'],high=row['carry_yards'],estimated=row['source']!='user_report'))
+    pw=pitching_wedge(profile,table)
+    if pw:clubs.append(dict(label='P杆',low=pw['carry_yards'],high=pw['carry_yards'],estimated=pw['source']!='user_report'))
+    for loft,row in profile.get('lofted_wedge_ranges',{}).get('value',{}).items():
+        divisor=.9144 if row['units']=='米' else 1
+        clubs.append(dict(label=str(loft)+'度杆',low=row['low']/divisor,high=row['high']/divisor,estimated=False))
+    adequate=[c for c in clubs if c['high']>=target_yards]
+    if not adequate:return '现有杆距不足以匹配这个过渡落点，请补充能稳定打够目标Carry的球杆。'
+    club=min(adequate,key=lambda c:(max(0,c['low']-target_yards),c['estimated'],c['high']))
+    scale=.9144 if unit=='米' else 1
+    target=round(target_yards*scale/5)*5
+    basis='（按7号铁杆距暂估）' if club['estimated'] else ''
+    if club['low']<=target_yards<=club['high']:
+        return f"过渡用杆可考虑{club['label']}{basis}，目标Carry约{target}{unit}，在已知杆距范围内。"
+    amount=round(club['high']*scale)
+    return f"过渡用杆可考虑{club['label']}，常规Carry约{amount}{unit}{basis}；需控制到约{target}{unit}，前提是你熟悉这个挥幅。按常规距离打会越过预计落点，不能直接套用。"
+
+
+@planning_geometry_cache
+def actual_position_layup(state, now, *, compare_safety=False, allow_other_par=False):
     from lie_position import fresh_position
     from round_state import fact_value
     origin=fresh_position(state,now)
@@ -397,22 +596,24 @@ def actual_position_layup(state, now, *, compare_safety=False):
     number=fact_value(state,'context.active_hole')
     course=state.get('evidence',{}).get(eid,{}).get('data',{})
     hole=next((h for h in course.get('holes',[]) if h['number']==number),None)
-    if not origin or not hole or hole['par']!=5:
+    if not origin or not hole or (hole['par']!=5 and not allow_other_par):
         return ''
     profile=state['journey'].get('profile',{})
     clubs={key:club for key,club in reported_carry_clubs(profile).items() if key!='driver'}
     if not clubs:
         return ''
     analysis=dict(course_evidence=eid,hole=number,clubs=clubs)
-    routes=par_five_routes(state,analysis,[dict(aim_point=origin['value'],crossing_m=None)])
+    from ball_rules import current as rule_flow
+    risk_first=allow_other_par or (rule_flow(state) or {}).get('revision',0)>=111
+    routes=par_five_routes(state,analysis,[dict(aim_point=origin['value'],crossing_m=None)],broad=allow_other_par,risk_first=risk_first)
     if not routes:
         return ''
-    if compare_safety:
+    if compare_safety or risk_first:
         from tee_geometry import landing_space
         for row in routes:
             row['space']=landing_space(hole,course.get('reference_simulation') is True,origin['value'],
                                        row['layup']['aim_point'],'fairway')
-        route=min(routes,key=lambda row:(row['crossings'],
+        route=min(routes,key=lambda row:row['risk_rank']) if risk_first else min(routes,key=lambda row:(row['crossings'],
                    sum(h['kind'] in ('water','ob') for h in row['space']['hazards']),
                    -row['space']['width_m'],row['leave_error']))
     else:
@@ -420,11 +621,14 @@ def actual_position_layup(state, now, *, compare_safety=False):
     unit=profile.get('units',{}).get('value','码')
     scale=.9144 if unit=='米' else 1
     layup=route['layup']
+    from hole_history import note as history_note
+    historical_note=history_note(state,number,origin['value'],layup['aim_point'],layup.get('club') or None)
     return (f"从现在的球位，可瞄{aiming_text(layup,unit)}，第二杆目标Carry约"
             f"{round(layup['carry_yards']*scale/5)*5}{unit}，预计第三杆到果岭参考点约"
             f"{round(route['leave_yards']*scale/5)*5}{unit}。"+crossing_text(layup,unit)
             +(space_text(route['space'],'球道落区',unit) if compare_safety else '')
-            +"按现场球位和滚动空间选杆。")
+            +layup_club_text(profile,layup['carry_yards'],unit,allow_woods=route.get('layup_allow_woods',False))
+            +"现场确认球位、障碍飞越余量和滚动空间。"+historical_note)
 
 
 def green_landing_space(state,analysis,origin,target):

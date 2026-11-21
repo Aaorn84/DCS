@@ -48,7 +48,7 @@ class JourneyHTTPTests(unittest.TestCase):
   from services.api.phoenix_demo import preview
   def turn(text=None,**extra):
    self.n+=1
-   stamp=(datetime(2026,11,18,tzinfo=timezone.utc)+timedelta(seconds=self.n*8)).isoformat()
+   stamp=datetime.now(timezone.utc).isoformat()
    event=dict(type='message' if text is not None else extra.pop('type'),event_id='rules'+str(self.n),observed_at=stamp,**extra)
    if text is not None:event['text']=text
    code,data=self.call('/journey',dict(action='event',operation_id=event['event_id'],event=event),self.token)
@@ -63,13 +63,43 @@ class JourneyHTTPTests(unittest.TestCase):
   turn('已确认最后越界点')
   turn('已在合法位置抛球')
   turn('球停在救济区内')
+  # Relief must have a current ball position before the score can be confirmed.
+  turn(type='gps',data=dict(preview(3)['positions']['fairway'],simulation_source='map_click'))
   turn('就在这里完成救济')
   data=turn('第3洞4杆，2推，1罚杆')
   self.assertEqual(1,data['journey']['round_records']['score_draft']['penalties'])
   self.assertEqual([1,3,4],[r['stroke_number'] for r in data['journey']['round_records']['clubs']])
-  self.assertTrue(turn('确认')['result']['saved'])
+  confirmed=turn('确认')['result']
+  self.assertTrue(confirmed.get('saved'),confirmed)
   data=turn('撤销上次罚杆')
   self.assertIn('重新确认',data['result']['text'])
   self.assertEqual('penalties',data['journey']['round_records']['score_draft']['awaiting'])
   self.assertEqual(self.call('/journey',{'action':'snapshot'},self.token)[1],self.call('/journey',{'action':'replay'},self.token)[1])
+ def test_history_metadata_is_paged_and_shots_load_only_on_explicit_request(self):
+  from services.api.round_state import Engine,canonical
+  self.call('/journey',{'action':'snapshot'},self.token);owner=self.server.store.user(self.token)
+  e=Engine(self.server.store.path,owner)
+  try:
+   s=e.state('companion-journey');s['journey']=dict(stage='postgame',round=dict(id='current',course='course',finished=True),profile={},coach={'enabled':False},history=[],quiet=False,memory_allowed=True)
+   for i in range(25):s['journey']['history'].append(dict(round=dict(id='old-'+str(i),course='course',finished=True),confirmed_holes=18,confirmed_subtotal=80,scores=[dict(hole=1,total=4,putts=2,penalties=0)],hole_history={'1':dict(signature='s',shots=[dict(id='shot',club='7号铁',stroke_number=1,distance_m=140)])}))
+   e.db.execute('UPDATE rounds SET state=? WHERE owner=? AND id=?',(canonical(s),owner,'companion-journey'));e.compact('companion-journey')
+  finally:e.close()
+  code,d=self.call('/journey',{'action':'snapshot'},self.token);self.assertEqual(code,200);j=d['journey'];self.assertEqual(len(j['history']),20);self.assertEqual(j['history_count'],25);self.assertNotIn('hole_history',j['history'][0]);self.assertNotIn('scores',j['history'][0])
+  code,d=self.call('/journey',{'action':'history','offset':20,'limit':20},self.token);self.assertEqual(code,200);self.assertEqual(len(d['history_page']['rounds']),5)
+  code,d=self.call('/journey',{'action':'history_hole','round_id':'old-0','hole':1},self.token);self.assertEqual(code,200);self.assertEqual(d['history_hole']['shots'][0]['club'],'7号铁')
+  other=self.call('/auth/register',{'email':'history-other@example.test','password':'password-12345'})[1]['token'];self.assertEqual(self.call('/journey',{'action':'history_hole','round_id':'old-0','hole':1},other)[0],400)
+
+ def test_compact_event_reply_reconstructs_full_snapshot(self):
+  from services.api.view_delivery import compact
+  before=self.call('/journey',{'action':'snapshot'},self.token)[1]['journey']
+  known=compact(before,{})['journey_revisions']
+  body=dict(action='event',operation_id='compact',compact_view=True,known_sections=known,event=dict(type='message',event_id='compact',text='可以记住',observed_at='2026-11-07T00:00:00+08:00'))
+  code,d=self.call('/journey',body,self.token);self.assertEqual(200,code);self.assertTrue(d['journey_unchanged'])
+  for path in d['journey_unchanged']:
+   parts=path.split('.');old=before;new=d['journey']
+   for part in parts[:-1]:old=old[part];new=new[part]
+   new[parts[-1]]=old[parts[-1]]
+  full=self.call('/journey',{'action':'snapshot'},self.token)[1]['journey']
+  self.assertEqual(full,d['journey'])
+
 if __name__=='__main__':unittest.main()

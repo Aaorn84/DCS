@@ -22,7 +22,7 @@ def short_club_request(s,text,now):
  greens=[g for g in (hole or {}).get('objects',[]) if g.get('kind')=='green_center']
  return len(greens)==1 and haversine(pos['value'],greens[0])<=50*.9144
 
-def handle(s,p,now):
+def _handle(s,p,now):
  j=s['journey'];text=p.get('text','');pending=j.get('short_game_question');club_advice=short_club_request(s,text,now);asked=club_advice or comparison(text)
  if pending and not asked:
   if pending.get('kind')!='map_obstacle_check':
@@ -98,3 +98,13 @@ def handle(s,p,now):
 def explicit_plan(text):
  if question(text) or re.search(r'不想|不要|不打|不确定|不知道|也许|可能|刚才|上一杆|打了|用了',text):return False
  return bool(re.search(r'打向|攻果岭|送上|过渡|切滚|抛切|高飞|高抛|推过去|瞄准',text) and re.search(r'[1-9一二两三四五六七八九](?:号铁|铁|号木)|短杆|切滚|抛切|高飞|高抛|推杆|球杆',text))
+
+
+def handle(s,p,now):
+ text=_handle(s,p,now)
+ if text is None or not p.get('_stroke_consistency_v111'):return text
+ from shot_club_advice import supplement
+ c=s.get('journey',{}).get('consultation') or {}
+ inferred=infer(s,now)
+ lie=c.get('lie_report') or (inferred or {}).get('label')
+ return supplement(s,text,lie=lie)

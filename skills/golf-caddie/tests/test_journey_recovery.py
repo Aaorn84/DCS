@@ -83,7 +83,7 @@ class JourneyRecoveryTests(unittest.TestCase):
  def test_preconfirmed_tee_opening_is_ready_for_distance(self):
   self.onboard()
   for _ in range(4):self.gps('tee')
-  self.assertEqual(view(self.e.state('j'))['stage'],'goal')
+  self.assertEqual(view(self.e.state('j'))['stage'],'ready')
   self.send('轻松打球');out=self.send('开始球局')
   self.assertIn('定位已确认',out['text']);self.assertNotIn('尚未提交',out['text'])
   self.assertIn('果岭',self.send('还有多少')['text'])
@@ -241,7 +241,8 @@ class SimulatedLandingPuttsTests(InferredPuttsTests):
   self.assertIn('按3杆上果岭推算2推',self.send('5杆')['text'])
   self.assertTrue(self.send('确认')['saved'])
   rows=view(self.e.state('j'))['round_records']['clubs']
-  self.assertEqual([r['stroke_number'] for r in rows if r.get('inferred_from_score')],[2,3])
+  self.assertEqual([r['stroke_number'] for r in rows if r.get('inferred_from_score') and r.get('source')!='score_placeholder'],[2,3])
+  self.assertEqual([r['stroke_number'] for r in rows if r.get('source')=='score_placeholder'],[1])
   self.assertEqual(self.e.state('j'),self.e.replay('j'))
 
 

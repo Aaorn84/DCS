@@ -93,7 +93,7 @@ class InternationalTests(unittest.TestCase):
   for locale in ('en-US','en-GB','ja-JP','ko-KR'):
    with self.subTest(locale=locale):
     self.configure(locale)
-    for slots in [dict(memory=False),dict(name='Alex'),dict(proactive=True),dict(shot_recording=False),dict(number=240),dict(number=160),dict(miss='right'),dict(course='synthetic-demo'),dict(tee='blue'),dict(number=1),dict(goal='relax')]:
+    for slots in [dict(memory=False),dict(name='Alex'),dict(proactive=True),dict(shot_recording=False),dict(number=240),dict(number=160),dict(miss='right'),dict(course='synthetic-demo'),dict(tee='blue'),dict(number=1)]:
      self.semantic('profile_answer',**slots)
     self.semantic('state_transition',action='start')
     self.assertEqual(self.e.state('i')['journey']['stage'],'active')

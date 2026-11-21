@@ -8,7 +8,7 @@ from round_session import course_schema,gps_matches
 from tee_strategy import analyze
 class PhoenixMapTests(unittest.TestCase):
  def test_source_points_all_holes_and_identity(self):
-  c=course();course_schema(c);self.assertEqual(len(c['holes']),18);self.assertEqual(sum(h['par'] for h in c['holes']),72);self.assertEqual(sum(h['published_yardage'] for h in c['holes']),6388)
+  c=course();course_schema(c);self.assertEqual(len(c['holes']),18);self.assertEqual(sum(h['par'] for h in c['holes']),69);self.assertEqual(sum(h['published_yardage'] for h in c['holes']),5748)
   self.assertFalse(c['production_spatial_use_allowed'])
   for h in c['holes']:
    for name,p in h['simulation_positions'].items():self.assertEqual(gps_matches(c,p),[h['number']],(h['number'],name))
@@ -31,7 +31,15 @@ class PhoenixMapTests(unittest.TestCase):
  def test_generated_asset_reproduces_source(self):
   root=Path(__file__).resolve().parents[3]/'球场数据接入样本/东莞凤凰山/data'
   normalized=json.loads((root/'course.normalized.json').read_text());route=json.loads((root/'route-ab-blue.example.json').read_text())
-  self.assertEqual(generate(normalized,route),course())
+  generated=generate(normalized,route);corrected=course()
+  for hole in corrected['holes']:
+   correction=hole.get('metadata_correction')
+   if not correction:continue
+   raw=next(h for h in generated['holes'] if h['number']==hole['number'])
+   self.assertEqual((raw['par'],raw['published_yardage']),(correction['previous_par'],correction['previous_published_yardage']))
+   self.assertEqual(correction['source'],'user_report')
+   raw.update(par=hole['par'],published_yardage=hole['published_yardage'],metadata_correction=copy.deepcopy(correction))
+  self.assertEqual(generated,corrected)
   normalized['coordinate_confirmation']['crs']='unknown'
   with self.assertRaises(ValueError):generate(normalized,route)
  def test_full_phoenix_flow_snapshot_replay(self):

@@ -45,7 +45,7 @@ def estimate(state,now,*,short_game_only=True, include_aim=False):
  pts=[project(p) for p in rings[0]];xmin=min(x for x,y in pts);xmax=max(x for x,y in pts);ymin=min(y for x,y in pts);ymax=max(y for x,y in pts)
  if xmax-xmin<1 or ymax-ymin<1:return None
  def point(x,y):return {'longitude':green['longitude']+(x*fy+y*fx)/(111000*cos),'latitude':green['latitude']+(-x*fx+y*fy)/111000,'accuracy_m':0}
- depth={'前':0,'中':1,'后':2}[row['depth']];side={'左':0,'中':1,'右':2}.get(row.get('side'))
+ depth={'前':0,'中':1,'后':2}[row['depth']];side=1 if row.get('side_estimated') else {'左':0,'中':1,'右':2}.get(row.get('side'))
  lo=ymin+(ymax-ymin)*depth/3;hi=ymin+(ymax-ymin)*(depth+1)/3
  left=xmin if side is None else xmin+(xmax-xmin)*side/3;right=xmax if side is None else xmin+(xmax-xmin)*(side+1)/3
  distances=[]; aim=None; aim_error=float("inf")

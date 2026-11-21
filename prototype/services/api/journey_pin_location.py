@@ -15,7 +15,7 @@ def present(s,p,result,now,owner=None):
 
 def prompt(s,p,row,now):
  if row.get('depth') is None:
-  return present(s,p,{'text':'这一洞的旗在果岭前部、中部，还是后部？不清楚可以跳过。','choices':['前旗','中旗','后旗','跳过']},now,'pin.depth')
+  return present(s,p,{'text':'旗在果岭哪里？可以说“左前”“中部”“右后”；只报前部、中部或后部也可以，不清楚可以跳过。' if p.get('_middle_pin_v108') else '这一洞的旗在果岭前部、中部，还是后部？不清楚可以跳过。','choices':['前部','中部','后部','跳过'] if p.get('_middle_pin_v108') else ['前旗','中旗','后旗','跳过']},now,'pin.depth')
  return present(s,p,{'text':'旗位偏左、居中，还是偏右？','choices':['偏左','居中','偏右','跳过']},now,'pin.side')
 
 DEPTH_WORDS={'前':'前','前旗':'前','前部':'前','前面':'前',
@@ -76,7 +76,11 @@ def reduce_journey(s,p,seq,now):
   elif skip:
    if owner=='pin.depth':row['depth']='unknown'
    row['side']='unknown';row['status']='complete';answered=True
-  elif owner=='pin.depth' and depth:row['depth']=depth;row['source_events'].append(p['event_id']);result=prompt(s,p,row,now)
+  elif owner=='pin.depth' and depth:
+   row['depth']=depth;row['source_events'].append(p['event_id'])
+   if p.get('_middle_pin_v108') and clean in ('前部','中部','后部'):
+    row.update(side='unknown',status='complete',side_estimated=True);answered=True
+   else:result=prompt(s,p,row,now)
   elif owner=='pin.side' and side:row['side']=side;row['status']='complete';row['source_events'].append(p['event_id']);answered=True
   elif enhanced and (assent(text) is not None or depth or side):
    result=prompt(s,p,row,now)
@@ -110,6 +114,7 @@ def reduce_journey(s,p,seq,now):
     pin=''.join(parts)
     if pin:
      note=('记下了，' if answered else '这一洞是')+pin+'。'
+     if row.get('side_estimated'):note+='左右尚未确认，先按横向居中估算。'
      if row['side'] in ('左','右') and not c['strategy_assessment'].get('practical_rough'):note+='别为追旗贴近'+row['side']+'侧边缘。'
      pin=c['strategy_assessment'].get('pin_distance_estimate')
      if pin:result={**result,'pin_distance_estimate':pin}

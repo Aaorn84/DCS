@@ -1,8 +1,54 @@
 """Map-derived tee targets for a known carry, using the current tee as the origin."""
-import math
+import math,copy
 
-from lie_position import polygon_contains
-from round_state import fact_value
+from lie_position import polygon_contains as _uncertainty_contains
+from round_state import fact_value,canonical
+from contextvars import ContextVar
+from functools import wraps
+_geometry_cache=ContextVar('planning_geometry_cache',default=None)
+
+def planning_geometry_cache(function):
+    @wraps(function)
+    def wrapped(*args,**kwargs):
+        if _geometry_cache.get() is not None:return function(*args,**kwargs)
+        token=_geometry_cache.set({})
+        try:return function(*args,**kwargs)
+        finally:_geometry_cache.reset(token)
+    return wrapped
+
+
+
+def polygon_contains(rings,point):
+    # Geometry here comes from mapped_polygons, which already validates rings.
+    # Generated exact sample points need ray casting, not a GPS disk distance
+    # calculation against every edge. Real uncertainty still uses the full check.
+    if point['accuracy_m']!=0:return _uncertainty_contains(rings,point)
+    px,py=point['longitude'],point['latitude']
+    cache=_geometry_cache.get()
+    key=('prepared_rings',id(rings))
+    prepared=cache.get(key) if cache is not None else None
+    if prepared is None:
+        bounds=[]
+        for ring in rings:
+            xs=[v[0] for v in ring];ys=[v[1] for v in ring]
+            bounds.append((min(xs),min(ys),max(xs),max(ys),tuple(zip(ring,ring[1:]))))
+        prepared=(rings,bounds)  # Retain input identity for the lifetime of this plan.
+        if cache is not None:cache[key]=prepared
+    outer=False
+    for index,(left,bottom,right,top,edges) in enumerate(prepared[1]):
+        if px<left or px>right or py<bottom or py>top:
+            if index==0:return False
+            continue
+        hit=False
+        for (x,y),(u,v) in edges:
+            cross=(px-x)*(v-y)-(py-y)*(u-x)
+            if cross==0 and min(x,u)<=px<=max(x,u) and min(y,v)<=py<=max(y,v):return False
+            if (y>py)!=(v>py) and px<x+(u-x)*(py-y)/(v-y):hit=not hit
+        if index==0:
+            if not hit:return False
+            outer=hit
+        elif hit:return False
+    return outer
 
 
 def valid_ring(ring):
@@ -13,6 +59,14 @@ def valid_ring(ring):
 
 
 def mapped_polygons(hole, simulation):
+    cache=_geometry_cache.get()
+    key=('polygons',id(hole),simulation)
+    if cache is not None and key in cache:return cache[key]
+    result=_mapped_polygons(hole,simulation)
+    if cache is not None:cache[key]=result
+    return result
+
+def _mapped_polygons(hole, simulation):
     polygons = {kind: {} for kind in ('fairway', 'green', 'bunker', 'water', 'ob')}
     if simulation:
         kinds = {'FairwayTrace': 'fairway', 'GreenTrace': 'green', 'BunkerTrace': 'bunker', 'WaterTrace': 'water'}
@@ -60,10 +114,24 @@ ROLL_IN_CLUBS=('three_wood','five_wood','hybrid','long_iron','iron3','iron4')
 MAX_ROLL_IN_YARDS=10
 
 
+@planning_geometry_cache
 def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False, surface='fairway',
                 roll_in=False):
     course = state['evidence'][analysis['course_evidence']]['data']
     hole = next(h for h in course['holes'] if h['number'] == analysis['hole'])
+    origin=origin or fact_value(state,'context.device_position')
+    clubs=list(clubs)
+    cache=_geometry_cache.get()
+    key=('tee_targets',id(hole),course.get('reference_simulation') is True,canonical([clubs,origin,allow_crossing,surface,roll_in]))
+    if cache is not None and key in cache:return copy.deepcopy(cache[key])
+    result=_tee_targets(state,analysis,clubs,origin=origin,allow_crossing=allow_crossing,surface=surface,roll_in=roll_in)
+    if cache is not None:cache[key]=copy.deepcopy(result)
+    return result
+
+
+def _tee_targets(state,analysis,clubs,*,origin,allow_crossing,surface,roll_in):
+    course=state['evidence'][analysis['course_evidence']]['data']
+    hole=next(h for h in course['holes'] if h['number']==analysis['hole'])
     polygons = mapped_polygons(hole, course.get('reference_simulation') is True)
     if not polygons[surface]:
         return []
@@ -101,6 +169,7 @@ def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False, su
     margin = max(5*.9144, origin['accuracy_m'])
     # A planning band around a single reported carry, with no estimated roll.
     targets = []
+    rotated={}
     for key, club in clubs:
         if roll_in and key not in ROLL_IN_CLUBS:
             continue
@@ -115,7 +184,10 @@ def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False, su
             east, north = math.sin(angle), math.cos(angle)
 
             def aim_rings(rings):
-                return [[(x*north-y*east, x*east+y*north) for x, y in ring] for ring in rings]
+                cache_key=(offset,id(rings))
+                if cache_key not in rotated:
+                    rotated[cache_key]=[[(x*north-y*east, x*east+y*north) for x, y in ring] for ring in rings]
+                return rotated[cache_key]
 
             midpoint = point(east*carry, north*carry)
             end=high
@@ -177,6 +249,14 @@ def tee_targets(state, analysis, clubs, *, origin=None, allow_crossing=False, su
 
 
 def landing_space(hole, simulation, origin, target, surface, roll_yards=0):
+    cache=_geometry_cache.get()
+    key=('space',id(hole),simulation,origin['latitude'],origin['longitude'],target['latitude'],target['longitude'],surface,roll_yards)
+    if cache is not None and key in cache:return cache[key]
+    result=_landing_space(hole,simulation,origin,target,surface,roll_yards)
+    if cache is not None:cache[key]=result
+    return result
+
+def _landing_space(hole, simulation, origin, target, surface, roll_yards=0):
     """Measure cross-track room and nearby mapped hazard edges at a candidate landing."""
     polygons=mapped_polygons(hole,simulation)
     scale=111195*math.cos(math.radians(origin['latitude']))

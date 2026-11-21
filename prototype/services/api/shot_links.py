@@ -148,7 +148,8 @@ def handle(s,p,now):
 def record_simulated_landing(s,p,now,*,preserve_played_shots=False):
  """Save a manually submitted simulation landing as horizontal distance."""
  data=p.get('data',{})
- if data.get('simulation_source')!='map_click' or data.get('simulation_position_action')=='correct':return
+ if p.get('protocol_version',0)>=111 and data.get('simulation_refresh'):return
+ if data.get('simulation_source')!='map_click' or data.get('simulation_position_action') in ('correct','move'):return
  key=scope(s)
  course=s.get('evidence',{}).get(key[1],{}).get('data',{})
  if course.get('reference_simulation') is not True:return

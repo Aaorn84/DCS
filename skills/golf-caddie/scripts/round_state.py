@@ -22,8 +22,13 @@ class Conflict(StateError):
     pass
 
 
+def _mapping_json(value):
+    from collections.abc import Mapping
+    if isinstance(value,Mapping):return dict(value.items())
+    raise TypeError('unsupported JSON value')
+
 def canonical(value):
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False, default=_mapping_json)
 
 
 def require(ok, message):
@@ -83,7 +88,7 @@ def valid_ref(s, ref):
     if ref.startswith('derived:'):
         d = s['derived'].get(ref[8:])
     else:
-        d = s['facts'].get(ref)
+        d = s.get('facts', {}).get(ref)
     return d if d and d.get('valid', True) else None
 
 
@@ -371,12 +376,22 @@ class Engine:
         self.db.executescript('''
         CREATE TABLE IF NOT EXISTS rounds(owner TEXT, id TEXT, state TEXT NOT NULL,
           PRIMARY KEY(owner,id));
+        CREATE TABLE IF NOT EXISTS receipt_buckets(id BLOB PRIMARY KEY, owner TEXT NOT NULL, aggregate_id TEXT NOT NULL, name TEXT NOT NULL, UNIQUE(owner,aggregate_id,name)) WITHOUT ROWID;
+        CREATE TABLE IF NOT EXISTS state_receipts(bucket_id BLOB NOT NULL, receipt_id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(bucket_id,receipt_id), FOREIGN KEY(bucket_id) REFERENCES receipt_buckets(id)) WITHOUT ROWID;
+        CREATE TABLE IF NOT EXISTS state_components(owner TEXT, digest TEXT, data TEXT NOT NULL, PRIMARY KEY(owner,digest));
         CREATE TABLE IF NOT EXISTS commands(owner TEXT, round_id TEXT, command_id TEXT,
           digest TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT NOT NULL, at REAL NOT NULL,
           seq INTEGER NOT NULL, result TEXT NOT NULL,
           PRIMARY KEY(owner,round_id,command_id), UNIQUE(owner,round_id,seq),
           FOREIGN KEY(owner,round_id) REFERENCES rounds(owner,id));
         ''')
+
+        from state_components import Components
+        import os,uuid
+        filename=self.db.execute('PRAGMA database_list').fetchone()[2]
+        namespace=(filename,os.stat(filename).st_ino) if filename else ('memory',uuid.uuid4().hex)
+        self.components=Components(self.db,self.owner,namespace)
+        self._committed=None
 
     def close(self):
         self.db.close()
@@ -385,10 +400,36 @@ class Engine:
         require(isinstance(round_id, str) and bool(round_id), 'round id required')
         self.db.execute('INSERT OR IGNORE INTO rounds VALUES(?,?,?)', (self.owner, round_id, canonical(initial())))
 
-    def state(self, round_id):
-        row = self.db.execute('SELECT state FROM rounds WHERE owner=? AND id=?', (self.owner, round_id)).fetchone()
-        require(row is not None, 'round not found for authenticated owner')
-        return json.loads(row[0])
+    def state(self, round_id, *, lazy=False):
+        from state_components import materialize
+        own_transaction=not lazy and not self.db.in_transaction
+        if own_transaction:self.db.execute('BEGIN')
+        try:
+            row=self.db.execute('SELECT state FROM rounds WHERE owner=? AND id=?',(self.owner,round_id)).fetchone()
+            require(row is not None,'round not found for authenticated owner')
+            self.components.aggregate=round_id
+            state=self.components.decode(json.loads(row[0]))
+            result=state if lazy else materialize(state)
+            if own_transaction:self.db.execute('COMMIT')
+            return result
+        except Exception:
+            if own_transaction:self.db.execute('ROLLBACK')
+            raise
+
+    def response_state(self,round_id):
+        version=self.db.execute("SELECT json_extract(state,'$.version') FROM rounds WHERE owner=? AND id=?",(self.owner,round_id)).fetchone()
+        require(version is not None,'round not found for authenticated owner')
+        if self._committed and self._committed[0]==round_id and self._committed[1]['version']==version[0]:return self._committed[1]
+        return self.state(round_id,lazy=True)
+
+    def compact(self,round_id):
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            state=self.state(round_id,lazy=True)
+            self.db.execute('UPDATE rounds SET state=? WHERE owner=? AND id=?',(canonical(self.components.encode(state)),self.owner,round_id))
+            self.db.execute('COMMIT')
+        except Exception:
+            self.db.execute('ROLLBACK');raise
 
     def command(self, round_id, command_id, kind, payload, expected_version=None, now=None, *, server_protocol=False):
         require(isinstance(command_id, str) and bool(command_id), 'command id required')
@@ -398,7 +439,7 @@ class Engine:
         require(type(at) in (float, int) and math.isfinite(at), 'invalid clock')
         self.db.execute('BEGIN IMMEDIATE')
         try:
-            s = self.state(round_id)
+            s = self.state(round_id,lazy=True)
             prev = self.db.execute('SELECT digest,result,kind,payload FROM commands WHERE owner=? AND round_id=? AND command_id=?', (self.owner, round_id, command_id)).fetchone()
             if prev:
                 retry_digest = digest
@@ -410,14 +451,16 @@ class Engine:
                 if prev[0] != retry_digest:
                     raise Conflict('idempotency key reused with different payload')
                 self.db.execute('COMMIT')
+                self._committed=(round_id,s)
                 return json.loads(prev[1])
             if expected_version is not None and s['version'] != expected_version:
                 raise Conflict('aggregate version conflict')
             seq = s['version'] + 1
             result = dict(reduce(s, kind, payload, seq, at), version=seq)
             self.db.execute('INSERT INTO commands VALUES(?,?,?,?,?,?,?,?,?)', (self.owner, round_id, command_id, digest, kind, canonical(payload), at, seq, canonical(result)))
-            self.db.execute('UPDATE rounds SET state=? WHERE owner=? AND id=?', (canonical(s), self.owner, round_id))
+            self.db.execute('UPDATE rounds SET state=? WHERE owner=? AND id=?', (canonical(self.components.encode(s)), self.owner, round_id))
             self.db.execute('COMMIT')
+            self._committed=(round_id,s)
             return result
         except Exception:
             self.db.execute('ROLLBACK')

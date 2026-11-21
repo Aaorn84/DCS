@@ -11,7 +11,7 @@ MODES = {
 }
 
 
-def respond(state, text, event_id, now, *, check_layup_match=False, learned_leave=None, learned_pace=False):
+def respond(state, text, event_id, now, *, check_layup_match=False, learned_leave=None, learned_pace=False, risk_first=False):
     journey = state['journey']
     profile = journey['profile']
     saved = profile.get('shot_style_preferences', {}) if journey.get('memory_allowed') else {}
@@ -72,10 +72,13 @@ def respond(state, text, event_id, now, *, check_layup_match=False, learned_leav
         return '先瞄果岭中央的宽处。'
 
     routes = re.fullmatch(r'五杆洞第二杆[，,]两条落点都可用[，,]可推进(\d{1,3})或(\d{1,3})(码|米)[，,]怎么选[？?]?', text)
+    if routes and risk_first:
+        return '这两条落点分别朝哪个方向、附近有什么障碍？先按落区空间和下一杆风险比较。'
     if routes:
         return layup(state, saved, now, (int(routes[1]), int(routes[2]), routes[3]),
                      check_match=check_layup_match, learned_leave=learned_leave)
     if re.fullmatch(r'五杆洞第二杆怎么打[？?]?', text):
+        if risk_first:return None
         return layup(state, saved, now, learned_leave=learned_leave)
     return None
 

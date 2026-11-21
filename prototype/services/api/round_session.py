@@ -111,8 +111,31 @@ def reduce_event(s, p, seq, now):
         session['draft']['awaiting'] = field
         return say(text, question_id=qid)
 
+    def guard_score(d):
+        if not p.get('_stroke_consistency_v111'):
+            return None
+        from ball_rules import score_issue,penalties
+        reported=penalties(s,d['hole'])
+        if (not d.get('penalties_explicit') or d.get('penalties') is None) and reported is not None:
+            d['penalties']=reported
+        issue=score_issue(s,d['hole'],d.get('penalties'))
+        if not issue:
+            return None
+        patch=s.get('patches',{}).get(session.get('pending_patch'))
+        if patch and patch.get('status')!='committed':
+            patch['status']='invalidated'
+        session['pending_patch']=None
+        if issue['field']=='incident':
+            close_question()
+            d['awaiting']='incident'
+            return say(issue['text'])
+        return ask(issue['field'],issue['text'])
+
     def finish_draft():
         d = session['draft']
+        blocked=guard_score(d)
+        if blocked is not None:
+            return blocked
         if 'putts' not in d or (p.get('_ball_rules_v107') and d.get('putts') is None and not d.get('putts_explicit_unknown')):
             return ask('putts', '这一洞几推？不清楚可以跳过。' if p.get('_ball_rules_v107') else '这一洞几推？')
         ce = active_evidence(session['course_evidence'])
@@ -270,7 +293,15 @@ def reduce_event(s, p, seq, now):
         return say('已撤销上一条记分。', retracted=True)
     if p.get('refresh_score_confirmation') is True and (session.get('draft') or {}).get('awaiting')=='confirm':
         return finish_draft()
+    if clean in ('继续记分','继续确认成绩') and session.get('draft') and p.get('_stroke_consistency_v111'):
+        return finish_draft()
     if clean in ('确认', '确认记录', '确认保存'):
+        if session.get('draft'):
+            blocked=guard_score(session['draft'])
+            if blocked is not None:
+                return blocked
+            if p.get('_stroke_consistency_v111') and session.get('pending_patch') is None:
+                return finish_draft()
         pid = session['pending_patch']
         require(pid is not None and session['draft'] is not None, 'no pending score confirmation')
         patch = s['patches'][pid]
@@ -326,6 +357,13 @@ def reduce_event(s, p, seq, now):
         d = dict(hole=hole, total=count(total), evidence_ids=[eid])
         if putts is not None:
             d['putts'] = count(putts)
+        elif p.get('_stroke_consistency_v111'):
+            from score_putt_inference import known_nonputts
+            known=known_nonputts(s,hole)
+            if known and (penalties is None or count(penalties)==known['penalties']):
+                inferred=d['total']-known['nonputts']-known['penalties']
+                if inferred>=0:
+                    d['putts']=inferred;d['inferred_putts']=True
         elif p.get('_score_v72'):
             question = s.get('questions', {}).get(session.get('question_id'), {})
             if (question.get('status') == 'pending' and question.get('target') == f'holes.{hole}'

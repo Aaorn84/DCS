@@ -9,7 +9,7 @@
   "gps_transition": "0.1.0",
   "artifact_naming": "stable filenames; versions in metadata and changelog",
   "journey": "0.34.0",
-  "journey_protocol": 107,
+  "journey_protocol": 111,
   "international_protocol": 4,
   "internationalization": "0.1.0",
   "training_dataset_schema": 1

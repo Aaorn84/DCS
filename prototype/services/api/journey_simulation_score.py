@@ -22,6 +22,13 @@ def reduce_journey(s,p,seq,now):
  if prior:
   require(prior==sha,'event id reused with different payload');return {'text':'','speak_allowed':False,'duplicate':True}
  previous_hole=fact_value(s,'context.active_hole')
+ # Restore a missed prior-hole prompt while retaining the current tee scene.
+ requested=p.get('previous_score_hole')
+ if p.get('_stroke_consistency_v111') and p.get('type')=='simulation_hole' and type(requested) is int and previous_hole==p.get('hole'):
+  course=s.get('evidence',{}).get(fact_value(s,'context.course_snapshot'),{}).get('data',{})
+  order=[h['number'] for h in course.get('holes',[])]
+  if requested in order and order.index(requested)+1<len(order) and order[order.index(requested)+1]==p['hole']:
+   previous_hole=requested
  previous_on_green=False
  one_to_green=False
  strokes_to_green=None
@@ -112,13 +119,19 @@ def reduce_journey(s,p,seq,now):
   order=[h['number'] for h in course.get('holes',[])];target=p['hole']
   next_hole=previous_hole in order and order.index(previous_hole)+1<len(order) and order[order.index(previous_hole)+1]==target
   prompted=session.setdefault('gps_prompted_holes',[])
+  attempt_key=canonical([(j.get('round') or {}).get('id'),fact_value(s,'context.course_snapshot'),previous_hole])
+  attempt=canonical([(j.get('round') or {}).get('id'),fact_value(s,'context.course_snapshot'),previous_hole,j.get('simulation_attempts',{}).get(attempt_key)])
+  attempt_prompts=session.setdefault('gps_score_prompt_attempts',{})
+  already_prompted=attempt in attempt_prompts if p.get('_stroke_consistency_v111') else previous_hole in prompted
   if (next_hole and fact_value(s,'preferences.proactive') is True and not j.get('quiet')
       and not fact_value(s,'context.quiet',False) and not fact_value(s,'context.preparing',False)
       and fact_value(s,f'holes.{previous_hole}.total') is None and not session.get('draft')
-      and not any(q.get('status')=='pending' for q in s.get('questions',{}).values()) and previous_hole not in prompted):
+      and not any(q.get('status')=='pending' for q in s.get('questions',{}).values()) and not already_prompted):
    qid=p['event_id']+'-previous-score'
    reduce(s,'question',{'id':qid,'target':f'holes.{previous_hole}','field':'total','deps':{},'proactive':True,**({'allow_unknown_putts':True} if previous_on_green else {}),**({'one_to_green':True} if one_to_green else {}),**({'strokes_to_green':strokes_to_green} if strokes_to_green else {})},seq,now)
-   session['question_id']=qid;session['score_target']=previous_hole;prompted.append(previous_hole)
+   session['question_id']=qid;session['score_target']=previous_hole
+   if previous_hole not in prompted:prompted.append(previous_hole)
+   if p.get('_stroke_consistency_v111'):attempt_prompts[attempt]=p['event_id']
    message=f'第{previous_hole}洞还没记分，刚才一共几杆？'
    row={'event_id':p['event_id'],'intent':'fact_request','domain':'score','question_owner':'score.total','scope':[(j.get('round') or {}).get('id'),fact_value(s,'context.course_snapshot'),target],'at':now,'spoken_text':message}
    j['response_context']=row;j.setdefault('dialogue_audit',[]).append(copy.deepcopy(row))

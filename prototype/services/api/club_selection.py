@@ -4,13 +4,13 @@ import re
 def selection(text, *, hybrid=False, expanded=False):
  if '?' in text or '？' in text:return None
  clean=re.sub(r'[\s，,。！!]','',text)
- clubs=r'一号木|1号木|三号木|3号木|[2-7二两三四五六七](?:号铁|铁)'
+ clubs=r'一号木|1号木|三号木|3号木|[2-9二两三四五六七八九](?:号铁|铁)'
  if expanded:clubs+=r'|[5五](?:号)?木'
  if hybrid:clubs+=r'|(?:[2-7二两三四五六七]号?)?(?:铁木杆|混合杆)'
  m=re.fullmatch(r'(?:好(?:的)?|可以)?(?:那就|我想|我还是|还是|就|想)?(?:改用|换成|换用|使用|用|选)?('+clubs+r')(?:吧)?',clean)
  if not m:return None
  label=m[1]
- if label not in ('一号木','三号木'):label=label.translate(str.maketrans('二两三四五六七','2234567'))
+ if label not in ('一号木','三号木'):label=label.translate(str.maketrans('二两三四五六七八九','223456789'))
  if label in ('一号木','1号木'):return {'key':'driver','label':'一号木'}
  if label in ('三号木','3号木'):return {'key':'three_wood','label':'3号木'}
  if expanded and label in ('5木','5号木'):return {'key':'five_wood','label':'5号木'}

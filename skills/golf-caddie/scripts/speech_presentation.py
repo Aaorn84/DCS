@@ -55,7 +55,8 @@ def natural_tee_options(value,route_details=None):
          '您今天更想稳一点，还是积极一点？')
 
 def spoken_text(value,reference_course=False,route_details=None,active_round=False):
- value=value.replace('设备位置','定位位置')
+ from tee_names import display
+ value=display(value).replace('设备位置','定位位置')
  if re.match(r'^第[0-9]+洞，[0-9]+杆洞。',value):
   value=re.sub(r'你自报一号木Carry约[0-9.]+(?:码|米)。$','',value)
  if active_round and value in ('好的。','好。','收到。'):value='放松，按自己的节奏打。'

@@ -292,7 +292,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.command=='GET' and path=='/health':
             return {'ok':True,'stage':'development','mapReady':False,
                     'provider':'deepseek' if os.environ.get('DEEPSEEK_API_KEY') else 'demo',
-                    'journeyProtocol':107,'roundStateReady':True,'courseGeometry':'point-bbox-prototype'}
+                    'journeyProtocol':111,'roundStateReady':True,'courseGeometry':'point-bbox-prototype'}
         body={}
         if self.command=='POST':
             try:
@@ -339,23 +339,38 @@ class Handler(BaseHTTPRequestHandler):
             finally:engine.close()
         if self.command=='POST' and path=='/journey':
             from journey import view as domain_view
-            def view(state):return dict(domain_view(state),runtime_protocol=107)
+            def view(state):
+                from tee_names import display
+                from state_components import materialize
+                return materialize(display(dict(domain_view(state),runtime_protocol=111)))
             engine=Engine(self.server.store.path,user)
             rid='companion-journey'
             try:
                 engine.create(rid)
                 action=body.get('action','snapshot')
-                if action=='snapshot':return {'journey':view(engine.state(rid))}
+                if action=='snapshot':return {'journey':view(engine.state(rid,lazy=True))}
                 if action=='replay':return {'journey':view(engine.replay(rid))}
+                if action=='history':
+                    from history_access import page
+                    offset=body.get('offset',0);limit=body.get('limit',20)
+                    number(offset,0,1000000);number(limit,1,50)
+                    return {'history_page':page(engine.state(rid,lazy=True),offset,limit)}
+                if action=='history_hole':
+                    from history_access import hole
+                    hole_number=body.get('hole');number(hole_number,1,18)
+                    return {'history_hole':hole(engine.state(rid,lazy=True),text(body.get('round_id'),100),hole_number)}
                 if action!='event':raise Problem(400,'未知旅程操作')
                 event=body.get('event')
                 if not isinstance(event,dict):raise Problem(400,'event必须为对象')
-                if any(k in event for k in ('owner','user_id','operations','command','payload','demo_course_snapshot','_pin_reply_v52','_pin_reply_v67','_wedge_bag_v68','_dialogue_v69','_dialogue_v70','_dialogue_v71','_score_v72','_infer_putts_v74','_score_copy_v76','_wedge_continue_v77','_infer_multi_putts_v79','_zero_penalties_v80','_pitching_choice_v81','_sim_putts_v82','_practical_rough_v83','_followups_v84','_landing_depth_v85','_aim_lines_v86','_audit_v87','_correction_v88','_pin_distance_prompt_v89','_score_wording_v92','_simulation_shot_v93','_tee_geometry_v94','_par_five_v95','_carry_crossing_v96','_par_five_compare_v97','_ask_fairway_carry_v98','_carry_playability_v99','_tee_brief_order_v100','_par_five_bag_v101','_par_five_roll_v102','_shared_tee_club_v103','_approach_risk_v104','_ball_outcome_v105','_ball_rules_v107')):raise Problem(400,'不允许的控制字段')
+                if any(k in event for k in ('owner','user_id','operations','command','payload','demo_course_snapshot','_pin_reply_v52','_pin_reply_v67','_wedge_bag_v68','_dialogue_v69','_dialogue_v70','_dialogue_v71','_score_v72','_infer_putts_v74','_score_copy_v76','_wedge_continue_v77','_infer_multi_putts_v79','_zero_penalties_v80','_pitching_choice_v81','_sim_putts_v82','_practical_rough_v83','_followups_v84','_landing_depth_v85','_aim_lines_v86','_audit_v87','_correction_v88','_pin_distance_prompt_v89','_score_wording_v92','_simulation_shot_v93','_tee_geometry_v94','_par_five_v95','_carry_crossing_v96','_par_five_compare_v97','_ask_fairway_carry_v98','_carry_playability_v99','_tee_brief_order_v100','_par_five_bag_v101','_par_five_roll_v102','_shared_tee_club_v103','_approach_risk_v104','_ball_outcome_v105','_ball_rules_v107','_middle_pin_v108','_approach_lie_v109','_stroke_consistency_v111')):raise Problem(400,'不允许的控制字段')
                 expected=body.get('expected_version')
                 if expected is not None:number(expected,0,2**31-1)
-                event=dict(event,protocol_version=107)
+                event=dict(event,protocol_version=111)
+                if isinstance(event.get('text'),str):
+                    from tee_names import legacy_input
+                    event=dict(event,text=legacy_input(event['text']))
                 result=engine.command(rid,text(body.get('operation_id'),100),'journey_event',event,expected_version=expected,server_protocol=True)
-                state=engine.state(rid)
+                state=engine.response_state(rid)
                 from speech_presentation import spoken_text
                 from tee_hazard_facts import route_facts
                 import time
@@ -384,8 +399,13 @@ class Handler(BaseHTTPRequestHandler):
                 if pin_estimate:result['pin_distance_estimate']=pin_estimate
                 result['speak_allowed']=bool(result.get('text')) and result.get('speak_allowed',True) and not state.get('journey',{}).get('quiet',False) and not any(state['facts'].get(k,{}).get('value') is True for k in ('context.quiet','context.preparing'))
                 if state['version']!=result['version']:result={**result,'text':'','speak_allowed':False,'stale_receipt':True}
-                return {'result':result,'journey':view(state)}
-            except Conflict as exc:raise Problem(409,str(exc),current=view(engine.state(rid)))
+                rendered=view(state)
+                if body.get('compact_view') is True:
+                    from view_delivery import compact
+                    known=body.get('known_sections')
+                    return dict(compact(rendered,known if isinstance(known,dict) else {}),result=result)
+                return {'result':result,'journey':rendered}
+            except Conflict as exc:raise Problem(409,str(exc),current=view(engine.state(rid,lazy=True)))
             except (StateError,KeyError,TypeError,ValueError) as exc:raise Problem(400,str(exc))
             finally:engine.close()
         if self.command=='POST' and path=='/round-state':

@@ -88,10 +88,28 @@ def reduce_journey(s,p,seq,now):
      result=offer(s,p,a,fresh,now) if fresh else response(s,p,{'text':'当前落区条件已变化，需要重新比较路线。'},now)
     else:
      picked={'key':route['club_key'],'label':route['club']};selected_offer=proposal(a,selected=picked)
+     if p.get('_tee_geometry_v94'):
+      from tee_strategy import suggest
+      selected_offer=suggest(s,a,'保守' if selected=='conservative' else '进取',j.get('profile',{}).get('units',{}).get('value','码'),selected=picked,
+                             mapped_fallback=True,par_five_plan=p.get('_par_five_v95',False),carry_crossing=p.get('_carry_crossing_v96',False),
+                             compare_par_five=p.get('_par_five_compare_v97',False),ask_fairway_carry=p.get('_ask_fairway_carry_v98',False),
+                             allow_roll_in=p.get('_par_five_roll_v102',False),compare_safety=p.get('_approach_risk_v104',False),compare_next_shot=p.get('_stroke_consistency_v111',False))
+      if not selected_offer.get('options') or len(selected_offer['options'])>1:
+       # Present the actual computed choice before asking for a commitment.
+       # The main reducer owns missing Carry and two/three-on questions.
+       from journey import _apply_journey as main
+       adapted=copy.deepcopy(p);adapted['protocol_version']=39;adapted['text']=picked['label']
+       j['consultation'].update(phase='tee_intent',player_intent='保守' if selected=='conservative' else '进取')
+       active['status']='selected';active['selected']=selected
+       result=main(s,adapted,seq,now)
+       j.setdefault('tee_options_receipts',{})[p['event_id']]=sha
+       return result
      require(bool(selected_offer['options']),'selected route unavailable')
      c=j['consultation'];c.update(phase='tee_commit',selected_club=picked,suggestion=selected_offer['options'][0],player_intent='保守' if selected=='conservative' else '进取',selection_report={'club':route['club'],'source':'user_report','event_id':p['event_id']})
+     c['last_offer']=copy.deepcopy(selected_offer)
      active['status']='selected';active['selected']=selected;j.pop('distance_comparison_focus',None)
-     result=response(s,p,{'text':f"好，按{'保守' if selected=='conservative' else '进取'}路线，用{route['club']}打向落区{route['target']}。就按这个打吗？",'choices':['按这个打','再想想','自己打']},now,'plan.confirm')
+     wording=(selected_offer['text']+'就按这个打吗？') if p.get('_tee_geometry_v94') else f"好，按{'保守' if selected=='conservative' else '进取'}路线，用{route['club']}打向落区{route['target']}。就按这个打吗？"
+     result=response(s,p,{'text':wording,'choices':['按这个打','再想想','自己打']},now,'plan.confirm')
   elif (assent(text) is not None or text in ('确认','按这个打','就按这个')) and j.get('response_context',{}).get('question_owner')=='tee.choice':
    result=response(s,p,{'text':'你想选保守方案还是进取方案？','choices':['保守方案','进取方案','自己打']},now,'tee.choice')
   elif text in ('继续刚才的问题','刚才问什么'):

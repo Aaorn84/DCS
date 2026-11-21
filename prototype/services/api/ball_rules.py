@@ -20,7 +20,7 @@ def initialize(state):
     from journey import round_records
     from ball_outcome import reported_penalties
     rows = [row for row in round_records(state)['clubs']
-            if row.get('hole') == scope(state)[2] and row.get('club') != '推杆']
+            if row.get('hole') == scope(state)[2] and row.get('club') != '推杆' and row.get('source')!='score_placeholder']
     penalty = reported_penalties(state, scope(state)[2])
     flow = dict(scope=list(scope(state)), sequence=[], incidents=[], balls={},
                 active_ball='original', pending=None, search=None, next_ball=1)
@@ -94,6 +94,75 @@ def migrate_pending(state, flow):
                        legacy.get('provisional_club'),row['origin'])
     flow['incidents'].append(row)
     flow['pending']=row['id'] if pending_phase else None
+
+
+def enable_consistency(state,flow):
+    if flow.get('revision',0)>=111:
+        return
+    old_penalties=penalties(state,flow['scope'][2])
+    imported=[item for item in flow['sequence'] if item['kind']=='penalty'
+              and item['id'].startswith('imported-')]
+    if imported:
+        latest={}
+        since=state['journey'].get('simulation_attempts',{}).get(canonical(flow['scope']))
+        for snapshot in state['journey'].get('ball_outcome_history',[]):
+            if snapshot['scope']!=flow['scope']:
+                continue
+            if since and snapshot.get('observed_at','')<since:
+                continue
+            latest[snapshot['incident_id']]=snapshot
+        sources=[row for row in latest.values() if (row.get('penalty') or 0)>0]
+        remaining=[dict(id=row['incident_id'],amount=row['penalty']) for row in sources]
+        previous={row['id']:row for row in flow['incidents']}
+        rebuilt=[]
+        for item in flow['sequence']:
+            if item not in imported:
+                rebuilt.append(item)
+                continue
+            amount=item['amount']
+            while amount and remaining:
+                source=remaining[0]
+                take=min(amount,source['amount'])
+                old=previous.get(source['id'],{})
+                split=dict(item,id=item['id']+'-'+source['id'],amount=take,
+                           incident_id=source['id'],active=old.get('status')!='cancelled')
+                rebuilt.append(split)
+                amount-=take
+                source['amount']-=take
+                if not source['amount']:
+                    remaining.pop(0)
+            if amount:
+                # Keep unattributed historical penalties until the player identifies them.
+                kept=dict(item,amount=amount,unattributed=True)
+                kept.pop('incident_id',None)
+                rebuilt.append(kept)
+        flow['sequence']=rebuilt
+        for source in sources:
+            row=previous.get(source['incident_id'])
+            if row is None:
+                row=dict(id=source['incident_id'],ball_id='original',cause=source.get('outcome') or 'unknown',
+                         phase='closed',status='active',shot_id=None,origin=None,
+                         provisional_ids=[],drop_count=0,history=[],migrated=True,
+                         created_at=source.get('observed_at'))
+                flow['incidents'].append(row)
+            row['penalty_ids']=[item['id'] for item in rebuilt if item.get('incident_id')==row['id']]
+    flow['revision']=111
+    if old_penalties!=penalties(state,flow['scope'][2]):
+        invalidate_score(state,flow['scope'][2])
+
+
+def score_issue(state,hole,declared_penalties):
+    round_id,course,_=scope(state)
+    flow=state.get('journey',{}).get('ball_rules',{}).get(canonical((round_id,course,hole)))
+    if not flow or flow.get('revision',0)<111:
+        return None
+    row=pending(flow)
+    if row:
+        return dict(field='incident',text=f"第{hole}洞还有未完成的事故或救济，请先完成处理。这份成绩草稿已保留。")
+    recorded=penalties(state,hole)
+    if declared_penalties is not None and declared_penalties!=recorded:
+        return dict(field='penalties',text=f"逐杆记录有{recorded}罚杆，你报的是{declared_penalties}罚杆。请先更正对应事故，或回复与记录一致的罚杆数；漏记的其他处罚可说“补记一杆罚杆”。")
+    return None
 
 def reset(state):
     key = canonical(scope(state))
@@ -172,8 +241,46 @@ def last_stroke(flow, ball_id=None):
                  and event.get('active', True)), None)
 
 
+
+def confirm_normal_shot(state,event,now):
+    flow=current(state)
+    opening=flow.get('open_shot') if flow else None
+    if not opening or flow.get('pending'):
+        return False
+    stroke=next((item for item in flow['sequence'] if item['id']==opening.get('stroke_id')),None)
+    if stroke is None:
+        add_stroke(flow,opening['id']+'-stroke',flow['active_ball'],
+                   opening.get('club'),opening.get('origin'))
+        stroke=last_stroke(flow)
+        opening['stroke_id']=stroke['id']
+    opening['result_confirmed']=True
+    return True
+
+
+def plan_shot(state,event):
+    flow=current(state)
+    if not flow:
+        return
+    opening=flow.get('open_shot')
+    if opening and (opening.get('landed') or opening.get('result_confirmed')):
+        flow.pop('open_shot',None)
+
 def capture_original(state, flow, event, now):
     ball_id = flow['active_ball']
+    opening=flow.get('open_shot')
+    if opening and event.get('protocol_version',0)>=111 and opening.get('landed'):
+        latest=last_stroke(flow,ball_id)
+        if latest and latest['id']!=opening.get('stroke_id'):
+            flow.pop('open_shot',None)
+            opening=None
+    if opening:
+        stroke=next((item for item in flow['sequence'] if item['id']==opening.get('stroke_id')),None)
+        if stroke is None:
+            add_stroke(flow,opening['id']+'-stroke',ball_id,opening.get('club'),opening.get('origin'))
+            stroke=last_stroke(flow,ball_id)
+            opening['stroke_id']=stroke['id']
+        stroke['outcome_checked']=True
+        return stroke
     existing = last_stroke(flow, ball_id)
     # The most recent mapped shot has already been registered by on_record.
     if existing and not existing.get('outcome_checked'):
@@ -189,10 +296,10 @@ def capture_original(state, flow, event, now):
     return stroke
 
 
-def incident(state, flow, event, now, cause='uncertain'):
+def incident(state, flow, event, now, cause='uncertain', capture=True):
     if flow.get('pending'):
         return next(row for row in flow['incidents'] if row['id'] == flow['pending'])
-    stroke = capture_original(state, flow, event, now)
+    stroke=capture_original(state,flow,event,now) if capture else (last_stroke(flow) or {'id':None,'origin':position(state,now)})
     row = dict(id=event['event_id'], ball_id=flow['active_ball'], cause=cause,
                phase='search', shot_id=stroke['id'], origin=stroke.get('origin'),
                status='active', penalty_ids=[], provisional_ids=[], drop_count=0,
@@ -261,6 +368,9 @@ def choices(state):
     row = pending(flow) if flow else None
     if not row:
         return None
+    from additional_rules import options as extra_options
+    extra=extra_options(row)
+    if extra:return extra
     phase = row['phase']
     if phase=='identify':
         return ['确认是我的球','不是我的球']
@@ -287,6 +397,8 @@ def choices(state):
         return ['开始找球', '暂定球已打', '球在界内', '确认出界', '确认下水', '三分钟没找到']
     if phase == 'water_certainty':
         return ['确认下水', '也可能在长草里', '只可能进罚杆区']
+    if phase in ('relief_position','live_position'):
+        return ['确认在当前位置']
     if phase == 'replay':
         return ['已回原位', '已按当地规则E-5抛球']+(['回最后一次罚杆区外位置','改按罚杆区向后延线'] if row.get('from_penalty_area') else [])
     if phase == 'b3_found':
@@ -345,6 +457,13 @@ def correction(state, flow, event, text):
     if row['status']=='cancelled':
         return '这次事故已经撤销。'
     record_change(row, event)
+    if flow.get('revision',0)>=111 and row.get('migrated') and row!=flow['incidents'][-1]:
+        row['status']='cancelled'
+        for item in flow['sequence']:
+            if item.get('incident_id')==row['id']:
+                item['active']=False
+        invalidate_score(state,flow['scope'][2])
+        return '已撤销这一笔历史罚杆，保留其他事故及击球记录，请重新确认成绩。'
     # A late discovery alone cannot revive an original ball already replaced
     # under the rules. Explicitly correcting a previous report is a data correction.
     row['status'] = 'cancelled'
@@ -416,6 +535,21 @@ def confirm_outcome(state, flow, row, cause):
         return '原球已退出使用，继续处理当前使用中球。若这颗球又出界或下水，请明确报告“暂定球出界”或“暂定球下水”。'
     if row['cause'] == cause and row['phase'] in ('replay', 'water_color', 'water_option', 'live_position'):
         return '这个结果已登记。'+('请更新暂定球的位置。' if row['phase']=='live_position' else '继续选择处理方式。')
+    if flow.get('revision',0)>=111 and row['cause'] not in ('uncertain',cause):
+        if row.get('relief_applied'):
+            return '这次救济已生效。若此前报告有误，请明确更正这次事故；继续打原球需要先核对球的身份。'
+        for item in flow['sequence']:
+            if item.get('incident_id')==row['id']:
+                item['active']=False
+        row.update(option=None,drop_count=0,penalty_ids=[])
+        if cause in ('ob','lost') and row['provisional_ids']:
+            for ball_id in row['provisional_ids']:
+                flow['balls'][ball_id]['status']='provisional'
+            flow['active_ball']=row['provisional_ids'][-1]
+            for item in flow['sequence']:
+                if item.get('incident_id')==row['id'] and item['ball_id'] in row['provisional_ids']:
+                    item['active']=True
+        invalidate_score(state,flow['scope'][2])
     row['cause'] = cause
     row['status'] = 'active'
     if cause=='water' and row.get('local_b3') and row['provisional_ids']:
@@ -440,36 +574,63 @@ def finish_relief(state, flow, row, event, now, same_position=False):
     if row.get('option') is None:
         row['option'] = 'stroke_distance' if row['cause'] in ('ob','lost') else 'user_confirmed'
     amount=row.get('relief_penalty_amount',2 if row['option']=='e5' else 1)
-    add_penalty(flow,row,amount,suffix='rule17-2' if row.get('relief_penalty_amount') else 'relief')
+    if amount:
+        add_penalty(flow,row,amount,suffix=row.get('penalty_suffix','rule17-2' if row.get('relief_penalty_amount') else 'relief'))
+    if event.get('protocol_version',0)>=111 and row['phase'] in ('drop','drop_result','redrop','place','place_result'):
+        row['relief_applied']=True
+        new_id=row['id']+'-replacement'
+        row['replacement_ball_id']=new_id
+        flow['balls'].setdefault(new_id,dict(id=new_id,parent=row['ball_id'],status='in_play'))
+        flow['balls'][row['ball_id']]['status']='superseded'
+        flow['active_ball']=new_id
     row.update(phase='relief_position', explicit_position=same_position)
+    selected=row.get('pending_relief_position')
+    if selected and not same_position:
+        if accept_position(state,flow,row,event,now,selected['point']):
+            return '已确认抛球停在救济区内，采用刚才提交的球位，'+('免罚' if amount==0 else '罚'+str(amount)+'杆')+'。可以再问我这杆怎么打。'
     if same_position:
-        accept_position(state, flow, row, event, now, position(state, now) or fact_value(state,'context.device_position'))
-        return '已按你确认的位置完成救济，罚'+str(amount)+'杆。下一杆从这里打。'
-    return '已登记'+str(amount)+'杆罚杆。请更新处理后的球位；若就在当前位置，可说“就在这里完成救济”。'
+        if not accept_position(state, flow, row, event, now, position(state, now) or fact_value(state,'context.device_position')):
+            return '回原位重打必须从上一杆击球位置开始。当前位置尚未与原击球位置匹配，请更新到原击球位置；这次移动不算击球。'
+        return '已按你确认的位置完成救济，'+('免罚' if amount==0 else '罚'+str(amount)+'杆')+'。下一杆从这里打。'
+    return ('已确认免罚救济。' if amount==0 else '已登记'+str(amount)+'杆罚杆。')+'请更新处理后的球位；若就在当前位置，可说“就在这里完成救济”。'
 
 
 def accept_position(state, flow, row, event, now, point):
     if not point:
         row['phase'] = 'relief_position'
         return False
+    if flow.get('revision',0)>=111 and row.get('option')=='stroke_distance':
+        origin=row.get('origin')
+        if not origin:
+            row['phase']='relief_position'
+            return False
+        tolerance=max(10,min(20,origin.get('accuracy_m',2)+point.get('accuracy_m',2)))
+        if haversine(origin,point)>tolerance:
+            row['phase']='relief_position'
+            return False
     from shot_links import add
-    pos = fresh_position(state, now)
-    if pos:
+    pos=fresh_position(state,now)
+    if not pos and event.get('protocol_version',0)>=110:
+        pos=state.get('facts',{}).get('context.device_position')
+    selected=row.get('pending_relief_position') or {}
+    evidence_ids=selected.get('evidence_ids') if selected.get('point')==point else (pos or {}).get('evidence_ids')
+    if evidence_ids:
         # Establish a new origin without interpreting relocation as a stroke.
         state['journey']['shot_location_candidates'] = [
             candidate for candidate in state['journey'].get('shot_location_candidates', [])
             if [candidate['round_id'], candidate['course'], candidate['hole']] != flow['scope']]
-        add(state, point, pos['evidence_ids'], 'rules_relief_position')
+        add(state,point,evidence_ids,'rules_relief_position')
     if row['phase'] == 'live_position':
         stroke = last_stroke(flow)
         if stroke and not stroke.get('landing'):
             stroke['landing'] = copy.deepcopy(point)
             stroke['distance_m'] = haversine(stroke['origin'], point) if stroke.get('origin') else None
     else:
-        new_id = event['event_id']+'-relief-ball'
-        flow['balls'][new_id] = dict(id=new_id, parent=row['ball_id'], status='in_play', origin=copy.deepcopy(point))
+        new_id=row.get('replacement_ball_id') or event['event_id']+'-relief-ball'
+        flow['balls'][new_id]=dict(id=new_id,parent=row['ball_id'],status='in_play',origin=copy.deepcopy(point))
         flow['active_ball'] = new_id
     row['relief_point'] = copy.deepcopy(point)
+    flow.pop('open_shot',None)
     close_incident(flow, row)
     state['journey'].pop('tee_club_fallback', None)
     state['journey'].pop('simulated_club_choice', None)
@@ -480,6 +641,23 @@ def on_position(state, event, now):
     flow = current(state)
     row = pending(flow) if flow else None
     if not row:
+        # Relocation may complete the GPS evidence for a voice-confirmed stroke;
+        # it must never create an additional stroke.
+        opening=(flow or {}).get('open_shot') or {}
+        data=event.get('data',{})
+        if (event.get('protocol_version',0)>=111 and data.get('simulation_position_action')=='move'
+                and not data.get('simulation_refresh') and opening.get('result_confirmed')
+                and not opening.get('landed')):
+            point=position(state,now)
+            pos=fresh_position(state,now)
+            fresh=pos and any(state['evidence'][eid].get('observed_at')==event['observed_at'] for eid in pos['evidence_ids'])
+            stroke=next((item for item in flow['sequence'] if item['id']==opening.get('stroke_id')),None)
+            if fresh and point and stroke and stroke.get('origin'):
+                stroke.update(landing=copy.deepcopy(point),distance_m=haversine(stroke['origin'],point))
+                opening['landed']=True
+                from landing_reports import bind_position
+                bind_position(state,stroke,point)
+                return '已补充上一杆落点和水平总距离，未新增击球。'
         return None
     if event.get('data',{}).get('simulation_refresh'):
         return ''
@@ -488,6 +666,19 @@ def on_position(state, event, now):
     if not point or not pos or not any(state['evidence'][eid].get('observed_at') == event['observed_at']
                                        for eid in pos['evidence_ids']):
         return None
+    if event.get('protocol_version',0)>=110:
+        if row['phase'] in ('drop','redrop','place','drop_result','place_result'):
+            row['pending_relief_position']={
+                'point':copy.deepcopy(point),'evidence_ids':list(pos['evidence_ids']),
+                'observed_at':event['observed_at']}
+        opening=flow.get('open_shot') or {}
+        if (not opening.get('landed') and opening.get('stroke_id')==row.get('shot_id')
+                and not row['provisional_ids'] and row['phase'] in ('search','water_certainty','water_color')):
+            stroke=next(item for item in flow['sequence'] if item['id']==row['shot_id'])
+            stroke.update(landing=copy.deepcopy(point),distance_m=haversine(stroke['origin'],point)
+                          if stroke.get('origin') else None)
+            opening['landed']=True
+            return '已补充这杆的模拟落点，沿用已有击球记录。请继续确认球的结果或选择救济方式。'
     if row.get('awaiting_provisional_position'):
         ball_id = row.pop('awaiting_provisional_position')
         stroke = last_stroke(flow, ball_id)
@@ -500,13 +691,39 @@ def on_position(state, event, now):
         return '已更新暂定球落点，保留其独立记录。原球确认在界内、出界、下水，还是暂时没看到？'
     if row['phase'] in ('live_position', 'relief_position'):
         was_provisional_water=row.get('provisional_water')==flow['active_ball']
-        accept_position(state, flow, row, event, now, point)
+        if not accept_position(state, flow, row, event, now, point):
+            return '回原位重打必须从上一杆击球位置开始。这个选点与原击球位置不符，请更新到原击球位置；未新增击球。'
         if was_provisional_water:
             water_incident=incident(state,flow,event,now,'water')
             water_incident['phase']='water_color'
             return '已更新使用中球位置。这颗球还需处理罚杆区救济，现场是红桩还是黄桩？'
         return '已更新处理后的球位，移动未计作击球。可以再问我这杆怎么打。'
     return ''
+
+
+def note_shot(state,event,now):
+    flow=initialize(state)
+    if flow.get('pending'):
+        return
+    flow['open_shot']=dict(id=event['event_id'],origin=position(state,now),
+                           club=(state['journey'].get('shot_audio',{}).get('club') if 'club' in state['journey'].get('shot_audio',{}) else selected_club(state)),stroke_id=None,landed=False,
+                           observed_at=event['observed_at'])
+    from tee_dispersion import capture
+    capture(state,flow)
+
+
+def new_shot_context(state,flow,latest):
+    opening=flow.get('open_shot')
+    if opening and (not opening.get('stroke_id') or opening['stroke_id']!=latest.get('shot_id')):
+        return True
+    from datetime import datetime
+    plans=state['journey'].get('player_decisions',[])
+    decision=next((item for item in reversed(plans) if item.get('hole')==flow['scope'][2]
+                   and item.get('round_scope')==flow['scope']),{})
+    observed=decision.get('observed_at')
+    created=latest.get('created_at')
+    return bool(observed and created and datetime.fromisoformat(observed.replace('Z','+00:00'))
+                >datetime.fromisoformat(created.replace('Z','+00:00')))
 
 
 def on_record(state, event, now):
@@ -516,6 +733,24 @@ def on_record(state, event, now):
     if not record:
         return
     start, end = record['endpoints']
+    opening=flow.get('open_shot')
+    if opening and opening.get('landed') and event.get('protocol_version',0)>=111:
+        flow.pop('open_shot',None)
+        opening=None
+    if opening and not opening.get('landed'):
+        stroke=next((item for item in flow['sequence'] if item['id']==opening.get('stroke_id')),None)
+        if stroke:
+            stroke.update(landing=copy.deepcopy(end['point']),distance_m=record['total_horizontal_m'],
+                          pair_ids=record['pair_ids'],club=record.get('club') or stroke.get('club'))
+        else:
+            add_stroke(flow,record['id'],flow['active_ball'],record.get('club') or opening.get('club'),
+                       start['point'],end['point'],record['pair_ids'])
+            stroke=last_stroke(flow)
+        opening.update(stroke_id=stroke['id'],landed=True)
+        from landing_reports import bind_position
+        bind_position(state,stroke,end['point'])
+        record['ball_id']=flow['active_ball']
+        return
     existing=next((item for item in flow['sequence'] if item.get('pair_ids')==record['pair_ids']),None)
     if existing:
         existing.update(club=record.get('club') or existing.get('club'),landing=end['point'],
@@ -582,6 +817,14 @@ def handle(state, event, text, now):
     if reply is not None:
         return reply
     row=pending(flow)
+    manual=re.fullmatch(r'补记([1-9一二两三四五六七八九])(?:杆)?罚杆(?:[（(](.+)[）)])?',clean)
+    if manual and event.get('protocol_version',0)>=111 and not row:
+        from round_session import count
+        row=incident(state,flow,event,now,'manual_penalty',capture=False)
+        add_penalty(flow,row,count(manual[1]),suffix='manual')
+        close_incident(flow,row)
+        invalidate_score(state,flow['scope'][2])
+        return '已补记'+str(count(manual[1]))+'杆罚杆，原因'+(manual[2] or '用户明确确认')+'。请重新确认本洞成绩。'
     latest=flow['incidents'][-1] if flow['incidents'] else None
     if not row and latest and latest.get('promoted') and re.search(r'找到(?:了)?原球',clean):
         return '原球已退出使用，继续打当前使用中球。若先前报告有误，请明确更正该次事故。'
@@ -620,6 +863,23 @@ def handle(state, event, text, now):
             cause='water' if '水' in clean else 'lost' if '遗失' in clean else 'ob'
             row=incident(state,flow,event,now,cause)
             return confirm_outcome(state,flow,row,cause)
+    if event.get('protocol_version',0)>=110 and row:
+        draft=state.get('session',{}).get('draft') or {}
+        confirm_here=clean in ('确认在当前位置','确认当前位置','就在当前位置','就在这里','当前位置确认',
+                               '确认在这里','确认在此处','在当前位置完成救济','已在当前位置完成救济')
+        short_confirm=clean in ('确认','可以','好的','是的') and draft.get('awaiting')!='confirm'
+        if row['phase'] in ('relief_position','live_position') and (confirm_here or short_confirm):
+            point=position(state,now) or fact_value(state,'context.device_position')
+            if accept_position(state,flow,row,event,now,point):
+                return '已确认当前位置为处理后的球位，可以再问我这杆怎么打。'
+            return '请先更新当前位置，再确认救济球位。'
+        if row['phase']=='drop_result' and (confirm_here or short_confirm):
+            clean='球停在救济区内'
+    if event.get('protocol_version',0)>=111:
+        from additional_rules import handle as additional_reply
+        extra=additional_reply(state,flow,event,clean,now)
+        if extra is not None:
+            return extra
     # A score reply continues through the score reducer even during an incident.
     if state.get('session', {}).get('draft') and re.fullmatch(r'\d+(?:推|罚杆|罚)?|[一二两三四五六七八九十]+(?:推|罚杆|罚)?|确认|确认记录', clean):
         return None
@@ -694,6 +954,8 @@ def handle(state, event, text, now):
         close_incident(flow,row)
         return '继续打原球，暂定球及其相关击球、罚杆作废。'
     if clean in ('原球可以打','原位打','打原球') and row and row['cause']=='water':
+        if row.get('relief_applied') and event.get('protocol_version',0)>=111:
+            return '已经完成合法抛球，替代球已成为使用中球。请继续打替代球；若是更正之前的报告，请明确更正事故。'
         if row.get('no_play_zone'):
             return '这里已确认是禁止打球区，需要采取救济。'+water_options(state,row)
         flow['active_ball']=row['ball_id']
@@ -741,7 +1003,9 @@ def handle(state, event, text, now):
         row['option']=option
         if option in ('back_on_line','lateral'):
             row['phase']='entry_point'
-            return '请确认球最后越过罚杆区边界的点。向后延线以球洞和该点连线后退；侧向救济以该点为基准，两杆范围内且不更靠洞。'
+            return ('请确认球最后越过罚杆区边界的点。'
+                    +('以球洞和该点连线向远离球洞方向后退抛球。' if option=='back_on_line'
+                      else '以该点为基准，两杆范围内侧向抛球，且不更靠洞。'))
         row['phase']='drop' if option=='dropping_zone' else 'replay'
         return '已选择'+clean+'。'+drop_instruction(row)
     if clean in ('已确认最后越界点','越界点已确认') and row and row['phase']=='entry_point':
@@ -887,7 +1151,7 @@ def handle(state, event, text, now):
             return '这颗暂定球疑似停在罚杆区，先确认原球身份；原球可继续时暂定球作废，原球出界或遗失时再处理这颗球的罚杆区救济。'
         flow['balls'][active_ball]['reported_outcome']='ob' if ('出界' in clean or 'ob' in clean) else 'lost'
         return '已记录这颗暂定球也出界或遗失。可在它上一杆位置再打第二颗暂定球，击球前声明，并单独报告用杆。'
-    if not row and latest and latest.get('completed_sequence_count')==len(flow['sequence']) and clean in ('确认出界','确认下水','确认遗失'):
+    if not row and latest and (event.get('protocol_version',0)<110 or not new_shot_context(state,flow,latest)) and latest.get('completed_sequence_count')==len(flow['sequence']) and clean in ('确认出界','确认下水','确认遗失'):
         expected={'确认出界':'ob','确认下水':'water','确认遗失':'lost'}[clean]
         if latest['cause']==expected and latest['status']=='active':
             return '这个结果已登记。新一杆再次出现情况时可说“这杆又出界了”或“这杆又下水了”。'

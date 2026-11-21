@@ -16,7 +16,7 @@ class PinLocationTests(unittest.TestCase):
  def approach(self):
   self.begin(False);self.send(gps=dict(preview(1)['positions']['fairway'],simulation_source='map_click'));self.send('怎么打');return self.send('160')
  def test_one_question_each_then_reuse_and_replay(self):
-  out=self.approach();self.assertIn('前部',out['text']);self.assertEqual(out['text'].count('？'),1);self.assertIn('前旗',view(self.e.state('j'))['choices'])
+  out=self.approach();self.assertIn('前部',out['text']);self.assertEqual(out['text'].count('？'),1);self.assertIn('前部',view(self.e.state('j'))['choices'])
   out=self.send('前旗');self.assertIn('偏左',out['text']);self.assertEqual(out['text'].count('？'),1)
   out=self.send('偏右');self.assertIn('前旗偏右',out['text']);self.assertIn('到旗位约',out['text']);self.assertIn('pin_distance_estimate',out);self.assertNotIn('前部',self.send('怎么打')['text']);self.assertEqual(self.e.state('j'),self.e.replay('j'))
  def test_explicit_pin_distance_from_approach_position(self):
