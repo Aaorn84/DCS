@@ -3,7 +3,7 @@ import {appendStrategyUsage} from './personalStrategy.ts';
 import {CORE_VERSION} from './protocol.ts';
 import {normalizeClub} from './bag.ts';
 /** Versioned deterministic rules core. No GPS swing inference, Carry calibration, or penalty probability. */
-export type Point={latitude:number;longitude:number;accuracy_m:number};
+export type Point={latitude:number;longitude:number;accuracy_m:number;elevation?:import('./elevation.ts').Elevation};
 export type LocalCommand={v:1;semantics:2;id:string;at:string;expected_revision:number;command:string;data?:Record<string,any>};
 export type LocalRound=any;
 const clone=<T>(v:T):T=>JSON.parse(JSON.stringify(v));

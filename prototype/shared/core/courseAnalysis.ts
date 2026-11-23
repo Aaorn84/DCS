@@ -1,3 +1,4 @@
+import {assessDistance,terrainResolver,type DistanceAssessment} from './elevation.ts';
 /** Course-local geometry and observations. No rules mutation or user preference ranking. */
 import type {Club} from './bag.ts';
 import {normalizeClub} from './bag.ts';
@@ -5,7 +6,7 @@ import {frame,validPoint,distance,contains,clearGroundRoute,classifyLocation,cro
 import type {Point} from './roundEngine.ts';
 import {planningPattern} from './personalStrategy.ts';
 import {systemRisk} from './strategyPolicy.ts';
-export type Candidate={purpose_only:boolean;target_surface:string;aim_label?:string;club:string;club_key:string;carry_yards:number;estimated:boolean;aim_point:Point;landing_point:Point;remaining_yards:number;width_yards:number;roll_yards:number;crossings:ReturnType<typeof crossings>;penalty_samples:number;bunker_samples:number;rough_samples:number;history_weight:number;risk:number;nearby:string[];dispersion_source:string;progress:number};
+export type Candidate={distance_assessment?:DistanceAssessment;remaining_distance_assessment?:DistanceAssessment;obstacle_distance_assessments?:DistanceAssessment[];purpose_only:boolean;target_surface:string;aim_label?:string;club:string;club_key:string;carry_yards:number;estimated:boolean;aim_point:Point;landing_point:Point;remaining_yards:number;width_yards:number;roll_yards:number;crossings:ReturnType<typeof crossings>;penalty_samples:number;bunker_samples:number;rough_samples:number;history_weight:number;risk:number;nearby:string[];dispersion_source:string;progress:number};
 const YARD=.9144;
 function historyWeight(pack:any,hole:number,origin:Point,target:Point,club:string){
  let failures=0;const seen=new Set<string>();const recent=(pack.history_by_hole?.[String(hole)]??[]).slice(0,500);
@@ -14,6 +15,7 @@ function historyWeight(pack:any,hole:number,origin:Point,target:Point,club:strin
 }
 export function courseCandidates(pack:any,model:any,hole:any,all:Surface[],clubs:Club[],surface:'fairway'|'green',origin:Point,green:Point,roll=false):Candidate[]{
  const f=frame(origin),v=f.xy(green),heading=Math.atan2(v.x,v.y),initial=distance(origin,green)/YARD,profile=model.profile??pack.profile??{},out:Candidate[]=[];
+ const terrain=terrainResolver(hole);
  const offsets=landingOffsets(all,origin,heading,surface,hole,pack.course.reference_simulation===true);
  for(const club of clubs){
   const carries=club.low===club.high?[club.high]:[...new Set([Math.min(club.high,Math.max(club.low,initial)),club.high,Math.max(club.low,Math.min(club.high,initial-6))])];
@@ -44,7 +46,7 @@ export function courseCandidates(pack:any,model:any,hole:any,all:Surface[],clubs
      if(nearbyBunker&&nearbyBunker.d<65){const vertices=nearbyBunker.s.rings[0].slice(0,-1);const center={longitude:vertices.reduce((n,v)=>n+v[0],0)/vertices.length,latitude:vertices.reduce((n,v)=>n+v[1],0)/vertices.length,accuracy_m:0};const b=f.xy(center),aim=f.xy(landing),g=f.xy(green);const side=b.x*g.y-b.y*g.x>=0?'右侧':'左侧',aimSide=aim.x*b.y-aim.y*b.x>=0?'右侧':'左侧';aimLabel=`${side}约${Math.round(distance(origin,center)/YARD)}码的沙坑${aimSide}球道`;}
     }
     if(penalty===0&&bunker===0&&weight===0)covered.push(offset);
-    out.push({purpose_only:Boolean(club.purposeOnly),target_surface:surface,...(aimLabel?{aim_label:aimLabel}:{}),club:club.label,club_key:club.key,carry_yards:carry,estimated:club.estimated,aim_point:endpoint,landing_point:landing,remaining_yards:remaining,width_yards:width,roll_yards:rollYards,crossings:crossing,penalty_samples:penalty,bunker_samples:bunker,rough_samples:rough,history_weight:weight,risk:systemRisk({penalty_samples:penalty,bunker_samples:bunker,rough_samples:rough,history_weight:weight}),nearby:[...new Set(nearby)],dispersion_source:envelope.source,progress:initial-remaining});
+    out.push({obstacle_distance_assessments:crossing.map(c=>assessDistance(origin,f.point({x:ux*c.far_m,y:uy*c.far_m}),terrain)),distance_assessment:assessDistance(origin,landing,terrain),remaining_distance_assessment:assessDistance(landing,green,terrain),purpose_only:Boolean(club.purposeOnly),target_surface:surface,...(aimLabel?{aim_label:aimLabel}:{}),club:club.label,club_key:club.key,carry_yards:carry,estimated:club.estimated,aim_point:endpoint,landing_point:landing,remaining_yards:remaining,width_yards:width,roll_yards:rollYards,crossings:crossing,penalty_samples:penalty,bunker_samples:bunker,rough_samples:rough,history_weight:weight,risk:systemRisk({penalty_samples:penalty,bunker_samples:bunker,rough_samples:rough,history_weight:weight}),nearby:[...new Set(nearby)],dispersion_source:envelope.source,progress:initial-remaining});
    }
   }
  }

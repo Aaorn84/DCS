@@ -144,7 +144,7 @@ export class OfflineRound {
   try{await this.save();}catch(error){this.disk=undefined;throw error;}
  }
  async execute(command:string,data:Record<string,any>,id:string,at:string){return this.exclusive(async()=>{const d=await this.load();await this.applyCommands(d,[{command,data}],id,at);return JSON.parse(JSON.stringify(d.local_state));});}
- private currentAdvice(d:Disk){return this.adviceRevision===d.local_state.revision&&this.adviceScope===d.package.sha256+'|'+d.local_state.round_id;}
+ private currentAdvice(d:Disk){return this.adviceRevision===d.local_state.revision&&this.adviceScope===d.package.sha256+'|'+d.local_state.round_id&&this.advice?.policy_version===coreFor(d.local_state.core_version).strategy_policy_version;}
  private plan(d:Disk,intent:PlanIntent={}){
   const key=JSON.stringify(intent);
   if(!this.currentAdvice(d)||this.adviceIntent!==key){this.advice=coreForPackage(d.package.package).planStrategy(d.package.package,d.local_state,intent as any);this.adviceRevision=d.local_state.revision;this.adviceIntent=key;this.adviceScope=d.package.sha256+'|'+d.local_state.round_id;}
@@ -157,18 +157,19 @@ export class OfflineRound {
   if(query&&!engine.parsePreference(text)&&!d.local_state.pending&&!d.local_state.draft&&d.local_state.stage==='playing'){
    const kind=/进取方案/.test(text)?'aggressive':/保守|安全|稳一点|稳妥/.test(text)?'conservative':/过渡|分两杆|打短一点/.test(text)?'layup':/其他|其它/.test(text)?'alternative':'default';
    const exclude=kind==='alternative'&&this.currentAdvice(d)?this.advice?.options?.[0]?.club:undefined;
-   const plan=this.plan(d,{kind,...(exclude?{exclude_club:exclude}:{})});
-   return {text:plan.text,local_state:JSON.parse(JSON.stringify(d.local_state)),choices:plan.question==='pin'?['左前','中部','右后','跳过旗位']:plan.question==='lie'?['球道','长草','沙坑','果岭上']:plan.question==='fairway_carry'?['跳过球道杆距','没有球道木和铁木杆']:plan.question==='ball_outcome'?['确认在界内','确认出界','确认下水']:engine.localChoices(d.local_state),totals:engine.localTotals(d.local_state),strategy:plan,clock_warning:Boolean(d.clock_warning)};
+   const plan=this.plan(d,{kind,...(exclude?{exclude_club:exclude,exclude_aim:this.advice?.options?.[0]?.aim_point}:{})});
+   return {text:plan.text,local_state:JSON.parse(JSON.stringify(d.local_state)),choices:plan.question==='finder_club'?['5号木','铁木杆','4号铁','其他方案']:plan.question==='finder_carry'?['其他方案']:plan.question==='pin'?['左前','中部','右后','跳过旗位']:plan.question==='lie'?['球道','长草','沙坑','果岭上']:plan.question==='fairway_carry'?['跳过球道杆距','没有球道木和铁木杆']:plan.question==='ball_outcome'?['确认在界内','确认出界','确认下水']:engine.localChoices(d.local_state),totals:engine.localTotals(d.local_state),strategy:plan,clock_warning:Boolean(d.clock_warning)};
   }
+  const previousIntent=this.currentAdvice(d)?JSON.parse(this.adviceIntent):undefined;
   const previousQuestion=this.currentAdvice(d)?this.advice?.question:null;
   const normalized=previousQuestion==='finder_carry'&&/^\d{1,3}(?:码|米)?$/.test(text)?this.advice.missing_club+text:previousQuestion==='fairway_carry'&&/^(跳过|不知道)$/.test(text)?'跳过球道杆距':previousQuestion==='fairway_carry'&&text==='没有'?'没有球道木和铁木杆':previousQuestion==='pin'&&/^(跳过|不知道)$/.test(text)?'跳过旗位':text;
-  let turn=engine.parseLocalTurn(d.local_state,normalized);
+  let turn=engine.parseLocalTurn(d.local_state,normalized);if('adaptFinderReply' in engine)turn=engine.adaptFinderReply(d.local_state,turn,previousQuestion);
   if(previousQuestion==='ball_outcome'&&/^(确认在界内|确认出界|确认OB|确认下水)$/i.test(normalized)){const cause=this.advice.suspected;turn=engine.parseLocalTurn({...d.local_state,pending:{phase:'uncertain',cause}},normalized);turn.commands.unshift({command:'report_incident',data:{cause}});}
   if(this.currentAdvice(d))for(const cmd of turn.commands)if(cmd.command==='select_club'){const target=this.advice?.options?.find((option:any)=>option.club===cmd.data.club);if(target){cmd.data.target=target.aim_point;const kind=JSON.parse(this.adviceIntent??'{}').kind;if(engine.personal_strategy&&(kind==='conservative'||kind==='layup'))cmd.data.strategy_choice='control';else if(engine.personal_strategy&&kind==='aggressive')cmd.data.strategy_choice='distance';}}
   if(turn.commands.length)await this.applyCommands(d,turn.commands,id,at);
   let response=turn.text,plan;
-  if(turn.commands.length&&previousQuestion&&turn.commands.every(c=>['set_pin','set_lie','set_club_purpose','set_club_carry','set_fairway_carry_status','set_position'].includes(c.command))){plan=this.plan(d);response=turn.text+plan.text;}
-  return {text:response,local_state:JSON.parse(JSON.stringify(d.local_state)),choices:engine.localChoices(d.local_state),totals:engine.localTotals(d.local_state),strategy:plan,clock_warning:Boolean(d.clock_warning)};
+  if(turn.commands.length&&(previousQuestion||['conservative','alternative'].includes(previousIntent?.kind)&&turn.commands.some(c=>['set_club_carry','set_fairway_finder'].includes(c.command)))&&turn.commands.every(c=>['set_pin','set_lie','set_club_purpose','set_club_carry','set_fairway_finder','set_fairway_carry_status','set_position'].includes(c.command))){plan=this.plan(d,previousIntent??{});response=turn.text+plan.text;}
+  return {text:response,local_state:JSON.parse(JSON.stringify(d.local_state)),choices:plan?.question==='finder_club'?['5号木','铁木杆','4号铁','其他方案']:plan?.question==='finder_carry'?['其他方案']:engine.localChoices(d.local_state),totals:engine.localTotals(d.local_state),strategy:plan,clock_warning:Boolean(d.clock_warning)};
  });}
 
  private snapshotDisk(d:Disk):Disk{const {package:pack,local_state:model,...mutable}=d;return {...JSON.parse(JSON.stringify(mutable)),package:pack,local_state:model?{round_id:model.round_id,receipts:JSON.parse(JSON.stringify(model.receipts))}:undefined};}

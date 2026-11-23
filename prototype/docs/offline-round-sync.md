@@ -1,6 +1,6 @@
 # 本机球局与同步协议
 
-当前共用核心版本1.6.0，接口声明offline_protocol:3。总体实现、策略、缓存和性能见 [shared-core-architecture.md](shared-core-architecture.md)。
+当前共用核心版本1.7.0，接口声明offline_protocol:3。总体实现、策略、缓存和性能见 [shared-core-architecture.md](shared-core-architecture.md)。
 
 ## 提前下载与离线开局
 
@@ -58,3 +58,5 @@
 已支持固定核心1.4.0与1.5.0并存执行。升级后未结束、未同步或准备中断的球局沿用原固定包和核心，见[跨版本续局](versioned-round-resume.md)。
 
 2026-11-23一致性修复：默认1.6，兼容1.4/1.5固定核心；Carry等档案按字段版本继承与合并，未结束独立手机球局禁止释放。详见[四项修复](four-consistency-fixes.md)。
+
+当前保守方案筛选与保底杆补报后的重新规划已修复，详见[保底杆修复](conservative-finder-fix.md)。新球局使用1.7，1.4/1.5/1.6固定核心保持不变。

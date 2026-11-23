@@ -49,3 +49,9 @@ test('frozen 1.5 also restores its original field shape and strategy after the 1
  const at=new Date().toISOString();await local.turn('以后优先保守打法','preference-after-upgrade',at);const disk=await local.verifyCached();assert.equal(disk.local_state.core_version,'1.5.0');assert.equal(disk.local_state.profile.strategy_preference.value,'control');assert.equal(disk.local_state.profile.field_versions,undefined);
  assert.equal((await local.strategy()).policy_version,1);
 });
+
+test('frozen 1.6 resumes with the same field clocks and rules after strategy 1.7 is installed',async()=>{
+ const f=await oldCheckpoint({core_version:'1.6.0'});const local=new OfflineRound('https://offline.test','a',f.store,f.key,randomUUID,hash);await local.verifyCached();
+ await local.turn('以后优先保守打法','pref-after-17',new Date().toISOString());const disk=await local.verifyCached();assert.equal(disk.local_state.core_version,'1.6.0');assert.equal(disk.local_state.profile.strategy_preference.value,'control');assert.equal(disk.local_state.profile.field_versions.strategy_preference.round_id,disk.local_state.round_id);
+ assert.equal((await local.strategy()).core_version,'1.6.0');
+});

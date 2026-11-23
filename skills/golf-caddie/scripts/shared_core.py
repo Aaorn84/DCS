@@ -4,9 +4,9 @@ Bounded persistent worker pool per API process; no Python fallback.
 import atexit,json,os,select,shutil,subprocess,sys,threading,time
 from collections import OrderedDict
 from pathlib import Path
-CORE_VERSION='1.6.0'
+CORE_VERSION='1.7.0'
 CORE_DATASET='shared-core-4'
-SUPPORTED_CORES=('1.4.0','1.5.0',CORE_VERSION)
+SUPPORTED_CORES=('1.4.0','1.5.0','1.6.0',CORE_VERSION)
 
 def _root():
  for parent in Path(__file__).resolve().parents:

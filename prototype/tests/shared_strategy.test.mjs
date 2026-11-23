@@ -16,7 +16,7 @@ function fixture({par=4,length=400,driver=260,wood=240,greenAt=400,greenWidth=35
  const profile={driver:reported(driver),three_wood:reported(wood),five_wood:reported(200),seven:reported(160),fairway_finder:{value:{club:'5号木'}}};
  const p=point(0,0),green=point(0,greenAt),lo=point(-5,-5),hi=point(5,5);
  const hole={number:1,par,published_yardage:length,tee_bbox:[lo.longitude,lo.latitude,hi.longitude,hi.latitude],objects:[{...green,id:'green',kind:'green_center'}],surface_zones:[rect('fairway','fairway',-45,5,45,greenAt+greenDepth/2),rect('green','green',-greenWidth/2,greenAt-greenDepth/2,greenWidth/2,greenAt+greenDepth/2),...zones]};
- const pack={schema:1,local_rules_version:1,dataset:CORE_DATASET,local_command_semantics:2,core_version:'1.6.0',round:{id:'r',tee:'蓝Tee',start_hole:1},profile,course:{course_id:'c',crs:'WGS84',holes:Array.from({length:18},(_,i)=>({...hole,number:i+1}))}};
+ const pack={schema:1,local_rules_version:1,dataset:CORE_DATASET,local_command_semantics:2,core_version:'1.7.0',round:{id:'r',tee:'蓝Tee',start_hole:1},profile,course:{course_id:'c',crs:'WGS84',holes:Array.from({length:18},(_,i)=>({...hole,number:i+1}))}};
  let model=createLocalRound(pack);model=applyLocalCommand(model,{v:1,semantics:2,id:'start',at:'2026-01-01T00:00:00Z',expected_revision:0,command:'start'});model.position={...p,accuracy_m:1};
  return {pack,model,hole:pack.course.holes[0]};
 }
@@ -25,7 +25,7 @@ test('a cleared bunker on the aim line does not eliminate the driver and default
  const {pack,model}=fixture({zones:[rect('b','bunker',-8,170,8,185)]});const result=planStrategy(pack,model);
  assert.equal(result.options.length,1);assert.equal(result.options[0].club,'一号木');assert.ok(result.options[0].crossings.some(c=>c.kind==='bunker'));assert.doesNotMatch(result.text,/一号木方案|历史参考/);
 });
-test('a conservative request uses the configured finder only when its geometry improves risk',()=>{
+test('a conservative request uses the mapped finder when its hazard exposure improves',()=>{
  const {pack,model}=fixture({driver:240,zones:[rect('b','bunker',3,226,35,253)]});
  const result=planStrategy(pack,model,{kind:'conservative',exclude_club:'一号木'});assert.equal(result.options.length,1);assert.equal(result.options[0].club,'5号木');assert.match(result.text,/保底开球杆/);assert.doesNotMatch(result.text,/一号木Carry/);
 });

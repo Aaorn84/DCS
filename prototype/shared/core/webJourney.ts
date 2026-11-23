@@ -1,7 +1,8 @@
+import {STRATEGY_POLICY_VERSION} from './strategyPolicy.ts';
 import {parseStrategyPreference} from './personalStrategy.ts';
 /** Web transport/presentation adapter. All golf mutations go through roundEngine. */
 import {createLocalRound,applyLocalCommand,CoreRuleError} from './roundEngine.ts';
-import {parseLocalTurn,localChoices,readGolfNumber} from './dialogue.ts';
+import {parseLocalTurn,localChoices,readGolfNumber,adaptFinderReply} from './dialogue.ts';
 import {planStrategy} from './strategy.ts';
 import {bag} from './bag.ts';
 import {CORE_VERSION} from './protocol.ts';
@@ -17,12 +18,12 @@ export function webJourneyTurn(pack:any,original:any,event:any,saved:any={}){
  const query=/怎么打|如何打|风险|其他.*(?:方案|路线|策略)|其它.*(?:方案|路线|策略)|进取方案|保守|稳一点|稳妥|安全.*(?:方案|策略)|分两杆|过渡|想打短一点/;
  const message=String(event.text??'').trim(),clean=message.replace(/[\s，,。！？!?]/g,'');
  const oldRevision=model.revision;
- const advice=context.advice?.revision===model.revision?context.advice.plan:null;
+ const advice=context.advice?.revision===model.revision&&context.advice.plan?.policy_version===STRATEGY_POLICY_VERSION?context.advice.plan:null;
  function plan(followup=false){
   const kind=/进取方案/.test(message)?'aggressive':/保守|安全|稳一点|稳妥/.test(message)?'conservative':/过渡|分两杆|打短一点/.test(message)?'layup':/其他|其它/.test(message)?'alternative':'default';
-  const intent=followup&&context.advice?.intent?context.advice.intent:{kind,...(kind==='alternative'&&advice?.options?.[0]?{exclude_club:advice.options[0].club}:{})};
+  const intent=followup&&context.advice?.intent?context.advice.intent:{kind,...(kind==='alternative'&&advice?.options?.[0]?{exclude_club:advice.options[0].club,exclude_aim:advice.options[0].aim_point}:{})};
   const key=JSON.stringify(intent);
-  if(context.advice?.revision===model.revision&&context.advice.intent_key===key){strategy=context.advice.plan;flags.strategy_cache_hit=true;}
+  if(context.advice?.revision===model.revision&&context.advice.plan?.policy_version===STRATEGY_POLICY_VERSION&&context.advice.intent_key===key){strategy=context.advice.plan;flags.strategy_cache_hit=true;}
   else{strategy=planStrategy(pack,model,intent);context.advice={revision:model.revision,plan:strategy,intent,intent_key:key};flags.strategy_cache_hit=false;}
   return strategy.text;
  }
@@ -94,7 +95,7 @@ export function webJourneyTurn(pack:any,original:any,event:any,saved:any={}){
    if(advice?.question==='fairway_carry'&&/^(跳过|不知道|没有)$/.test(clean))input=clean==='没有'?'没有球道木和铁木杆':'跳过球道杆距';
    if(advice?.question==='finder_carry'&&/^\d{1,3}(?:码|米)?$/.test(clean))input=advice.missing_club+clean;
    if(/^(按这个打|就按这个打|好)$/.test(clean)&&advice?.options?.length===1)input=advice.options[0].club;
-   let result=parseLocalTurn(model,input);
+   let result=adaptFinderReply(model,parseLocalTurn(model,input),advice?.question??null);
    if(advice?.question==='ball_outcome'&&/^(确认在界内|确认出界|确认OB|确认下水)$/i.test(clean)){
     result=parseLocalTurn({...model,pending:{phase:'uncertain',cause:advice.suspected}},input);result.commands.unshift({command:'report_incident',data:{cause:advice.suspected}});
    }
@@ -114,12 +115,14 @@ export function webJourneyTurn(pack:any,original:any,event:any,saved:any={}){
    if(commands.some(c=>c.command==='confirm_score')){delete context.scoreDue;delete context.partialScore;}
    if(commands.some(c=>c.command==='record_stroke'))context.awaitingLanding=true;
    if(commands.some(c=>c.command==='select_club')&&context.audio?.enabled)context.audio={enabled:true,phase:'armed',arm_id:model.selection.event_id,delay_seconds:5};
-   if(model.revision!==oldRevision&&advice?.question&&commands.every(c=>['set_pin','set_lie','set_club_carry','set_fairway_carry_status','set_club_purpose'].includes(c.command)))text+=plan(true);
+   if(model.revision!==oldRevision&&(advice?.question||['conservative','alternative'].includes(context.advice?.intent?.kind)&&commands.some(c=>['set_club_carry','set_fairway_finder'].includes(c.command)))&&commands.every(c=>['set_pin','set_lie','set_club_carry','set_fairway_finder','set_fairway_carry_status','set_club_purpose'].includes(c.command)))text+=plan(true);
   }
  }else throw new CoreRuleError('unsupported shared web event');
  if(commands.some(c=>c.command==='confirm_finish'))text='本场已收好，需要我给本场做个分析总结吗？';
  let choices=localChoices(model);
  if(context.partialScore&&!model.draft)choices=['一推','两推','三推'];
+ if(strategy?.question==='finder_club')choices=['5号木','铁木杆','4号铁','其他方案'];
+ if(strategy?.question==='finder_carry')choices=['其他方案'];
  if(strategy?.question==='pin')choices=['左前','中部','右后','跳过旗位'];
  if(strategy?.question==='ball_outcome')choices=['确认在界内','确认出界','确认下水'];
  if(model.finished)choices=['分析总结本场','下一场','撤销上次操作'];
