@@ -17,3 +17,14 @@ test('international client does not retry a stale semantic answer after conflict
  globalThis.fetch=async()=>new Response(JSON.stringify({error:'stale'}),{status:409});
  try{const c=new InternationalClient('http://example.test','test');await assert.rejects(c.submit({type:'configure'},'op'));assert.equal(c.pending,null);await assert.rejects(c.retry(),/No pending/);}finally{globalThis.fetch=previous;}
 });
+test('temporary HTTP failures retain the original international operation',async()=>{
+ const previous=globalThis.fetch;
+ try{
+  for(const status of [408,425,429,500,502,503,504]){
+   const bodies=[];globalThis.fetch=async(_u,init)=>{bodies.push(init.body);return new Response(JSON.stringify({error:'temporary'}),{status})};
+   const c=new InternationalClient('https://example.test','token');await assert.rejects(c.submit({type:'semantic',event_id:'original'},'same-operation',4));assert.ok(c.pending,status);
+   globalThis.fetch=async(_u,init)=>{bodies.push(init.body);return new Response(JSON.stringify({version:5}),{status:200})};
+   await c.retry();assert.equal(bodies[0],bodies[1]);assert.equal(c.pending,null);
+  }
+ }finally{globalThis.fetch=previous;}
+});

@@ -5,6 +5,26 @@ permissions:
 jobs:
   regression:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: caddie_test
+          POSTGRES_PASSWORD: disposable-test-password
+          POSTGRES_DB: caddie_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U caddie_test" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s
+          --health-timeout 5s --health-retries 10
+    env:
+      CADDIE_TEST_POSTGRES_URL: postgresql://caddie_test:disposable-test-password@127.0.0.1:5432/caddie_test
+      CADDIE_TEST_REDIS_URL: redis://127.0.0.1:6379/15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -13,12 +33,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Skill and state engine
+      - run: pip install -r prototype/requirements-production.txt
+      - name: Skill and state engine (isolated PostgreSQL schemas)
         working-directory: skills/golf-caddie
         run: python -B -m unittest discover -s tests -p 'test_*.py'
-      - name: API integration
+      - name: API and production integration (PostgreSQL only)
         working-directory: prototype
         run: python -B -m unittest discover -s tests -p 'test_*.py'
+      - name: Frozen core integrity
+        run: python -B prototype/scripts/freeze_core_release.py --verify
       - name: Client logic
         working-directory: prototype
         run: node --experimental-transform-types --test tests/*.test.mjs

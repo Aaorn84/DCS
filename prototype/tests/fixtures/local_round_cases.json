@@ -1,0 +1,1473 @@
+[
+  {
+    "name": "18-hole-round",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 2
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 3
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 4
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 5
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 6
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 7
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 8
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 9
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 10
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 11
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 12
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 13
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 14
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 15
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 16
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 17
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 18
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "request_finish",
+        "data": {}
+      },
+      {
+        "command": "confirm_finish",
+        "data": {
+          "confirmed": true
+        }
+      }
+    ],
+    "totals": {
+      "holes": 18,
+      "total": 54,
+      "putts": 36,
+      "penalties": 0
+    }
+  },
+  {
+    "name": "ob-provisional",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_ob"
+        }
+      },
+      {
+        "command": "play_provisional",
+        "data": {
+          "club": "一号木",
+          "announced": true
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "ob"
+        }
+      },
+      {
+        "command": "complete_relief",
+        "data": {
+          "point": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          },
+          "legal_confirmed": true
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 5,
+          "putts": 2,
+          "penalties": 1
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      }
+    ],
+    "totals": {
+      "holes": 1,
+      "total": 5,
+      "putts": 2,
+      "penalties": 1
+    }
+  },
+  {
+    "name": "ob-retee",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_ob"
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "ob"
+        }
+      },
+      {
+        "command": "complete_relief",
+        "data": {
+          "point": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          },
+          "legal_confirmed": true
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "5号木",
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "found-original",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_lost"
+        }
+      },
+      {
+        "command": "play_provisional",
+        "data": {
+          "club": "5号木",
+          "announced": true
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "in_bounds"
+        }
+      }
+    ]
+  },
+  {
+    "name": "yellow-relief",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_water"
+        }
+      },
+      {
+        "command": "play_provisional",
+        "data": {
+          "club": "5号木",
+          "announced": true
+        },
+        "error": true
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "water",
+          "known_or_virtually_certain": true
+        }
+      },
+      {
+        "command": "choose_relief",
+        "data": {
+          "method": "lateral",
+          "color": "yellow"
+        },
+        "error": true
+      },
+      {
+        "command": "choose_relief",
+        "data": {
+          "method": "back_on_line",
+          "color": "yellow"
+        }
+      },
+      {
+        "command": "complete_relief",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          },
+          "legal_confirmed": true,
+          "crossing_confirmed": true,
+          "ball_stayed": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "red-relief",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_water"
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "water",
+          "known_or_virtually_certain": true
+        }
+      },
+      {
+        "command": "choose_relief",
+        "data": {
+          "method": "lateral",
+          "color": "red"
+        }
+      },
+      {
+        "command": "complete_relief",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          },
+          "legal_confirmed": true,
+          "crossing_confirmed": true,
+          "ball_stayed": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "play-water-original",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_water"
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "water",
+          "known_or_virtually_certain": true
+        }
+      },
+      {
+        "command": "choose_relief",
+        "data": {
+          "method": "play_original"
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "58度杆"
+        }
+      }
+    ]
+  },
+  {
+    "name": "undo-score",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "undo",
+        "data": {}
+      },
+      {
+        "command": "undo",
+        "data": {}
+      }
+    ]
+  },
+  {
+    "name": "rejected-score-and-confirm",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        },
+        "error": true
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 2,
+          "putts": 2,
+          "penalties": 0
+        },
+        "error": true
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 2
+        },
+        "error": true
+      }
+    ]
+  },
+  {
+    "name": "water-after-provisional-and-unknown-drop-point",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_ob"
+        }
+      },
+      {
+        "command": "play_provisional",
+        "data": {
+          "club": "5号木",
+          "announced": true
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "water",
+          "known_or_virtually_certain": true
+        }
+      },
+      {
+        "command": "set_penalty_area_color",
+        "data": {
+          "color": "red"
+        }
+      },
+      {
+        "command": "choose_relief",
+        "data": {
+          "method": "lateral"
+        }
+      },
+      {
+        "command": "complete_relief",
+        "data": {
+          "legal_confirmed": true,
+          "crossing_confirmed": true,
+          "ball_stayed": true,
+          "position_unknown_confirmed": true
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 4,
+          "putts": 2,
+          "penalties": 1
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      }
+    ],
+    "totals": {
+      "holes": 1,
+      "total": 4,
+      "putts": 2,
+      "penalties": 1
+    }
+  },
+  {
+    "name": "lost-search-time-confirmation",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "select_club",
+        "data": {
+          "club": "一号木",
+          "target": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "landing": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_lost"
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "lost"
+        },
+        "error": true
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "lost",
+          "search_expired": true
+        }
+      },
+      {
+        "command": "complete_relief",
+        "data": {
+          "legal_confirmed": true
+        }
+      }
+    ]
+  },
+  {
+    "name": "correct-old-hole-beyond-undo-window",
+    "steps": [
+      {
+        "command": "start",
+        "data": {}
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 2
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 3
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 4
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 5
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 6
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "7号铁"
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 3,
+          "putts": 2,
+          "penalties": 0
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      },
+      {
+        "command": "switch_hole",
+        "data": {
+          "hole": 1
+        }
+      },
+      {
+        "command": "draft_score",
+        "data": {
+          "total": 4,
+          "putts": 2,
+          "penalties": 0,
+          "correct_existing": true
+        }
+      },
+      {
+        "command": "confirm_score",
+        "data": {
+          "confirmed": true
+        }
+      }
+    ],
+    "totals": {
+      "holes": 6,
+      "total": 19,
+      "putts": 12,
+      "penalties": 0
+    }
+  },
+  {
+    "name": "restore-original-position-sem2",
+    "steps": [
+      {
+        "command": "start",
+        "semantics": 2
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        },
+        "semantics": 2
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "一号木"
+        },
+        "semantics": 2
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_ob"
+        },
+        "semantics": 2
+      },
+      {
+        "command": "set_landing",
+        "data": {
+          "point": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        },
+        "semantics": 2
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "in_bounds"
+        },
+        "semantics": 2
+      }
+    ]
+  },
+  {
+    "name": "legacy-position-semantics-replay",
+    "steps": [
+      {
+        "command": "start"
+      },
+      {
+        "command": "set_position",
+        "data": {
+          "point": {
+            "latitude": 22.7,
+            "longitude": 114.15,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "record_stroke",
+        "data": {
+          "club": "一号木"
+        }
+      },
+      {
+        "command": "report_incident",
+        "data": {
+          "cause": "possible_ob"
+        }
+      },
+      {
+        "command": "set_landing",
+        "data": {
+          "point": {
+            "latitude": 22.701,
+            "longitude": 114.151,
+            "accuracy_m": 2
+          }
+        }
+      },
+      {
+        "command": "resolve_ball",
+        "data": {
+          "result": "in_bounds"
+        }
+      }
+    ]
+  }
+]

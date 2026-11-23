@@ -1,8 +1,9 @@
+from testing.database import TestDatabase
 import unittest,tempfile,threading,json,urllib.request,urllib.error
 from services.api.server import make_server
 class InternationalHTTPTests(unittest.TestCase):
  def setUp(self):
-  self.tmp=tempfile.TemporaryDirectory();self.server=make_server(self.tmp.name+'/db',port=0);self.t=threading.Thread(target=self.server.serve_forever,daemon=True);self.t.start();self.base='http://127.0.0.1:'+str(self.server.server_port)
+  self.tmp=TestDatabase();self.server=make_server(self.tmp.url,port=0);self.t=threading.Thread(target=self.server.serve_forever,daemon=True);self.t.start();self.base='http://127.0.0.1:'+str(self.server.server_port)
   self.token=self.call('/auth/register',{'email':'international@example.test','password':'password-12345'})[1]['token']
  def tearDown(self):self.server.shutdown();self.server.server_close();self.t.join();self.tmp.cleanup()
  def call(self,path,body,token=None):

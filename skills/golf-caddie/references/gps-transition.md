@@ -1,3 +1,5 @@
+> 历史设计记录：本文所述旧Python执行器/CLI和独立会话接口已退役。当前执行链路见[完整旅程](complete-journey.md)及共用核心架构；本文不作为运行命令依据。
+
 # GPS连续轨迹与换洞识别 v0.1.0
 
 实现：scripts/gps_transition.py，经round_session接入。消费WGS84设备位置和显式路线顺序；不推断实际击球、入洞或成绩。

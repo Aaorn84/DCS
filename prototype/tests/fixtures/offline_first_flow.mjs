@@ -1,0 +1,41 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+import {createHash,randomUUID} from 'node:crypto';
+import {CourseLibrary} from '../../apps/mobile/src/courseLibrary.ts';
+import {OfflineRound} from '../../apps/mobile/src/offlineRound.ts';
+import {CheckpointStore} from '../../apps/mobile/src/checkpointStore.ts';
+import {setupAnswer} from '../../apps/mobile/src/localSetup.ts';
+import {JourneyClient} from '../../apps/mobile/src/journey.ts';
+import {localTotals} from '../../shared/core/roundEngine.ts';
+const input=JSON.parse(fs.readFileSync(0,'utf8'));const hash=async s=>createHash('sha256').update(s).digest('hex');
+const rows=new Map(),raw={getItem:async k=>rows.get(k)??null,setItem:async(k,v)=>rows.set(k,v),removeItem:async k=>rows.delete(k)};
+const store=new CheckpointStore(raw,hash,k=>!k.includes('.package.'));
+const library=new CourseLibrary(input.base,input.token,store,'account.library',randomUUID,hash);
+await library.catalog();const initial=await library.read();const course=initial.catalog[0];
+await library.download(course.course_id,course.tees[0]);
+const network=globalThis.fetch;let blocked=0;
+globalThis.fetch=async()=>{blocked++;throw Error('offline')};
+let draft=(await library.read()).draft;
+for(const text of ['可以记住','测试球友','可以提醒','可以记录','260','160','偏右','5号木200码'])draft=setupAnswer(draft,text).draft;
+draft={...draft,course_id:course.course_id,tee:course.tees[0],start_hole:1,stage:'ready'};await library.saveDraft(draft);
+const record=await library.prepareLocalRound();let local=new OfflineRound(input.base,input.token,store,record.key,randomUUID,hash);
+await local.beginOffline(await library.materialize(record));await library.activate(record.id);
+const initialDisk=await local.cached();assert.equal(initialDisk.native_start.registered,false);
+assert.equal(blocked,0);let n=0;
+const execute=(command,data={})=>local.execute(command,data,'event-'+(++n),new Date().toISOString());
+for(let hole=1;hole<=18;hole++){
+ const h=initialDisk.package.package.course.holes.find(h=>h.number===hole);const point=h.simulation_positions.tee;
+ await execute('set_position',{point:{latitude:point.latitude,longitude:point.longitude,accuracy_m:0}});await execute('select_club',{club:'一号木'});await execute('record_stroke',{});
+ await execute('draft_score',{total:4,putts:2,penalties:0});await execute('confirm_score',{confirmed:true});
+ if(hole===9){local=new OfflineRound(input.base,input.token,store,record.key,randomUUID,hash);await local.verifyCached();}
+ if(hole<18)await execute('switch_hole',{hole:hole+1});
+}
+await execute('request_finish');await execute('confirm_finish',{confirmed:true});assert.equal(blocked,0);
+const before=await local.cached();assert.equal(localTotals(before.local_state).total,72);
+globalThis.fetch=async(url,init)=>{const response=await network(url,init);if(JSON.parse(init.body??'{}').action==='register'&&response.ok){globalThis.fetch=network;throw Error('registration receipt lost');}return response;};
+await assert.rejects(local.synchronize());assert.equal((await local.cached()).queue.length,before.queue.length);assert.equal((await local.cached()).native_start.registered,false);
+globalThis.fetch=network;
+await local.synchronize();await local.synchronize();await local.release();const snapshot=await local.snapshot();
+const after=await local.cached();assert.equal(after.queue.length,0);assert.equal(after.native_start.registered,true);
+const postgame=new JourneyClient(input.base,input.token,undefined,'/offline-rounds',{round_id:record.id,device_id:after.device_id,lease_id:after.lease.lease_id});const report=await postgame.submit({type:'message',event_id:randomUUID(),observed_at:new Date().toISOString(),text:'分析总结本场'},randomUUID(),snapshot.journey.version);
+process.stdout.write(JSON.stringify({report:report.result.text,round_id:record.id,events:before.local_state.revision,totals:localTotals(after.local_state),server_totals:snapshot.journey.score_summary,offline_network_requests:blocked,profile:after.local_state.profile}));

@@ -15,7 +15,7 @@ class PackageError(ValueError):
 
 
 DIRECTORIES = {'agents', 'references', 'scripts', 'tests', 'assets'}
-SUFFIXES = {'.md', '.py', '.yaml', '.yml', '.json', '.jsonl', '.png', '.jpg', '.jpeg', '.svg'}
+SUFFIXES = {'.sql', '.md', '.py', '.yaml', '.yml', '.json', '.jsonl', '.png', '.jpg', '.jpeg', '.svg'}
 MAX_FILES, MAX_TOTAL_BYTES = 500, 50_000_000
 
 

@@ -24,6 +24,14 @@ def source(parent):
 
 
 class SkillPackageTests(unittest.TestCase):
+    def test_database_schema_is_included_in_release_artifact(self):
+        m=builder()
+        with tempfile.TemporaryDirectory() as tmp:
+            r=source(tmp);(r/'scripts/schema.sql').write_text('CREATE TABLE sample(id TEXT PRIMARY KEY);\n')
+            result=m.build_package(r,Path(tmp)/'dist')
+            with zipfile.ZipFile(result['archive']) as z:
+                self.assertIn('sample-caddie/scripts/schema.sql',z.namelist())
+
     def test_stable_root_and_standard_entry(self):
         m=builder()
         with tempfile.TemporaryDirectory() as tmp:

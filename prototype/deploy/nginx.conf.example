@@ -1,0 +1,44 @@
+# Include in the http{} block; provision TLS certificates separately.
+limit_req_zone $binary_remote_addr zone=caddie_auth:10m rate=10r/m;
+limit_req_zone $binary_remote_addr zone=caddie_api:10m rate=10r/s;
+upstream caddie { server 127.0.0.1:8787; keepalive 16; }
+server {
+    listen 443 ssl;
+    server_name caddie.example.com;
+    ssl_certificate /etc/caddie/tls/fullchain.pem;
+    ssl_certificate_key /etc/caddie/tls/privkey.pem;
+    client_max_body_size 64k;
+    client_body_timeout 10s;
+    client_header_timeout 10s;
+    limit_req_status 429;
+    location = /metrics { deny all; }
+    # Liveness has no dependency checks and must not share business rate limits.
+    location = /health {
+        proxy_pass http://caddie;
+        proxy_set_header Host $host;
+        proxy_read_timeout 2s;
+    }
+    # Readiness touches dependencies: keep it internal. Add actual probe networks explicitly.
+    location = /ready {
+        allow 127.0.0.1;
+        allow ::1;
+        deny all;
+        proxy_pass http://caddie;
+        proxy_set_header Host $host;
+        proxy_read_timeout 5s;
+    }
+    location ~ ^/auth/(login|register)$ {
+        limit_req zone=caddie_auth burst=5 nodelay;
+        proxy_pass http://caddie;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_read_timeout 35s;
+    }
+    location / {
+        limit_req zone=caddie_api burst=20 nodelay;
+        proxy_pass http://caddie;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header Host $host;
+        proxy_read_timeout 35s;
+    }
+}

@@ -1,4 +1,4 @@
-"""Versioned, language-neutral gateway to the existing journey reducer.
+"""Versioned language adapter for application services and the shared core.
 Bounded fixture NLU is deliberately not a production multilingual model.
 """
 import copy
@@ -114,11 +114,11 @@ def parse_fixture(text,locale):
  return None
 
 def canonical_message(c):
- """Compatibility renderer, not the public semantic protocol. Reject unused slots."""
+ """Bounded semantic renderer for the current shared core. Reject unused slots."""
  kind=c['type'];v=c.get('slots',{})
  allowed={
  'fact_request':{'domain'},'confirmation':{'value','action'},'state_transition':{'action'},
- 'interaction_override':{'coaching','quiet'},'profile_answer':{'number','course','tee','name','memory','proactive','shot_recording','miss','goal','condition'},
+ 'interaction_override':{'coaching','quiet'},'profile_answer':{'number','course','tee','name','memory','proactive','shot_recording','miss'},
  'score_report':{'total','putts','penalties','hole'},'player_intent':{'approach'},
  'decision_commitment':{'club'},'execution_report':{'club'}}
  require(kind in allowed,'semantic type requires attribution adapter; not silently committed')
@@ -147,14 +147,12 @@ def canonical_message(c):
   if key in ('memory','proactive','shot_recording'):
    require(type(v[key]) is bool,'boolean preference required')
    return {'memory':('可以记住','仅本场'),'proactive':('可以提醒','不主动提醒'),'shot_recording':('可以记录','不记录击球')}[key][0 if v[key] else 1]
-  enums={'miss':{'right':'偏右','left':'偏左','short':'打短','variable':'不固定'},
-         'goal':{'relax':'轻松打球','score':'争取成绩','practice':'练一个重点'},
-         'condition':{'good':'状态不错','tired':'有些疲劳','relax':'只想放松'}}
+  enums={'miss':{'right':'偏右','left':'偏左','short':'打短','variable':'不固定'}}
   if key in enums:
    require(v[key] in enums[key],'invalid profile enum');return enums[key][v[key]]
   if key=='course':
-   require(v[key] in ('synthetic-demo','dongguan-phoenix-ab-blue-demo'),'course provider not connected')
-   return '演示球场（合成）' if v[key]=='synthetic-demo' else '东莞凤凰山（A+B蓝台演示）'
+   require(v[key]=='dongguan-phoenix-ab-blue-demo','course provider not connected')
+   return '东莞凤凰山（A+B蓝台演示）'
   if key=='tee':
    require(v[key] in ('blue','white','red'),'unsupported tee');return {'blue':'蓝台','white':'白台','red':'红台'}[v[key]]
   require(key=='name' and isinstance(v[key],str) and 0<len(v[key])<=30,'invalid profile answer');return v[key]
@@ -172,18 +170,15 @@ def canonical_message(c):
  return ('我还是用了' if kind=='execution_report' else '我想用')+label
 
 def snapshot(s):
- from journey import view
+ from round_view import view
  return {'configuration':copy.deepcopy(s.get('international',{}).get('configuration',DEFAULTS)),
          'journey':view(s), 'capabilities':{'semantic_protocol':4,'nlu':'bounded-fixtures',
          'reply_localization':'partial','production_ready':False,'overseas_course_provider':False,
          'regional_storage_enforced':False},'version':s['version']}
 
 def reduce_event(s,p,seq,now):
- if p.get('protocol_version')==1:
-  from international_legacy import reduce_event as legacy
-  return legacy(s,p,seq,now)
- require(p.get('protocol_version') in (2,3,4),'unsupported international protocol')
- require(not set(p)-{'protocol_version','event_id','observed_at','type','configuration','candidate','text','data'},'unknown event field')
+ require(p.get('protocol_version') ==4,'unsupported international protocol')
+ require(not set(p)-{'protocol_version','event_id','observed_at','type','configuration','candidate','text','data','core_scope'},'unknown event field')
  eid=p.get('event_id');require(isinstance(eid,str) and bool(re.fullmatch(r'[A-Za-z0-9_-]{1,100}',eid)),'invalid event id')
  require(isinstance(p.get('observed_at'),str),'observation time required')
  try:stamp=datetime.fromisoformat(p['observed_at'].replace('Z','+00:00'));require(stamp.tzinfo is not None,'timezone required')
@@ -195,7 +190,7 @@ def reduce_event(s,p,seq,now):
   return {'text':'','speak_allowed':False,'duplicate':True}
  cfg=i['configuration'];kind=p.get('type');result={}
  if kind=='configure':
-  require(set(p)<={'protocol_version','event_id','observed_at','type','configuration'},'invalid configure fields')
+  require(set(p)<={'protocol_version','event_id','observed_at','type','configuration','core_scope'},'invalid configure fields')
   cfg=config(p.get('configuration'),cfg);i['configuration']=cfg
   result={'text':MESSAGES[cfg['locale']]['configured'],'status':'configured','speak_allowed':True}
  else:
@@ -204,16 +199,17 @@ def reduce_event(s,p,seq,now):
   if kind in ('semantic','utterance') and (c is None or impact(c)=='high' or c.get('confidence',1)<.8):
    result={'text':MESSAGES[cfg['locale']]['clarify'],'status':'clarify','speak_allowed':True,'candidate':c}
   else:
-   from journey import reduce_journey
-   event={'protocol_version':{2:32,3:65,4:87}[p['protocol_version']],'event_id':'intl_'+hashlib.sha256(eid.encode()).hexdigest()[:40],'observed_at':p['observed_at'],'type':kind if kind in ('gps','resume') else 'message'}
+   from application import reduce_event as application_event
+   from shared_web import should_handle,reduce_event as core_event,is_active
+   event={'event_id':'intl_'+hashlib.sha256(eid.encode()).hexdigest()[:40],'observed_at':p['observed_at'],'type':kind if kind in ('gps','resume') else 'message'}
    if c:
     # Typed profile answers cannot answer another pending question or act as controls.
     if c['type']=='profile_answer':
      v=c.get('slots',{});key=next(iter(v),None);j=s.get('journey',{});stage=j.get('stage','memory')
      stages={'memory':('memory',),'name':('name',),'proactive':('proactive',),'shot_recording':('shot_recording',),
-             'course':('course',),'tee':('tee',),'miss':('miss',),'goal':('goal',),'condition':('condition',)}
+             'course':('course',),'tee':('tee',),'miss':('miss',)}
      if key in stages:require(stage in stages[key],'profile answer does not own current question')
-     if key=='number':require(stage in ('driver','seven','start_hole') or (stage=='active' and (j.get('consultation') or {}).get('phase') in ('tee_club','approach_club')),'number has no live ability or starting-hole question')
+     if key=='number':require(stage in ('driver','seven','start_hole'),'number has no live ability or starting-hole question')
      if key=='name':require(not re.search(r'安静|结束|确认|跳过|撤销|继续|可以|不可以|开始|球局',str(v[key])),'name conflicts with control grammar')
     event['text']=canonical_message(c)
    if kind=='gps':
@@ -221,7 +217,16 @@ def reduce_event(s,p,seq,now):
    # Unit preferences are explicit and independent of market/language.
    if s.get('journey'):
     s['journey'].setdefault('profile',{})['units']={'value':'米' if cfg['distance_unit']=='m' else '码','source':'regional_configuration'}
-   out=reduce_journey(s,event,seq,now)
+   from tee_names import normalize_input
+   if isinstance(event.get('text'),str):event['text']=normalize_input(event['text'])
+   if should_handle(s,event):
+    payload=dict(event=event,core_scope='international|'+p['core_scope'])
+    if not is_active(s):
+     from offline_package import build
+     package=build(s);payload.update(seed=package['package'],sha256=package['sha256'])
+    out=core_event(s,payload,seq,now)
+   elif kind=='gps':out=dict(text='请先开始本场球局，再采用地图位置。',speak_allowed=True,ignored=True)
+   else:out=application_event(s,event,seq,now)
    source=out.get('text','')
    native=cfg['locale']=='zh-CN'
    # Never speak untranslated Chinese using a Japanese/Korean/English voice.
@@ -229,7 +234,7 @@ def reduce_event(s,p,seq,now):
            'speak_allowed':bool(out.get('speak_allowed')) and native,
            'status':'processed' if native or not source else 'translation_required','semantic_event':c}
  from round_state import fact_value
- if s.get('journey',{}).get('quiet') or any(fact_value(s,k) is True for k in ('context.quiet','context.preparing')):
+ if s.get('journey',{}).get('quiet'):
   result={**result,'text':'','speak_allowed':False}
  i['receipts'][eid]=digest
  return result
