@@ -137,3 +137,8 @@ class SharedWebHTTPTests(unittest.TestCase):
    self.assertEqual([basis(state)],saved);self.assertEqual(18,len(saved[0]));self.assertEqual({'par':4,'published_yardage':380},saved[0]['11']);self.assertEqual({'par':3,'published_yardage':130},saved[0]['17'])
    self.assertEqual(saved,engine.replay('companion-journey')['journey']['history'][-1]['course_basis'])
   finally:engine.close()
+ def test_conservative_request_replans_after_finder_and_carry_without_repeating_the_question(self):
+  self.start();alternative=self.say('有没有其他方案');self.assertRegex(alternative['result']['strategy']['options'][0]['club'],r'^[345]号铁$');first=self.say('有没有保守方案');self.assertEqual('finder_club',first['result']['strategy']['question']);recorded=self.say('保底开球杆 5号木 200码')
+  self.assertEqual('5号木',recorded['result']['strategy']['options'][0]['club']);self.assertEqual(200,recorded['result']['strategy']['options'][0]['carry_yards']);self.assertEqual(0,len(self.model()['holes']['1']['rows']))
+  again=self.say('有没有保守方案');self.assertEqual('5号木',again['result']['strategy']['options'][0]['club']);self.assertNotIn('请补充保底开球杆',again['result']['text']);self.assertEqual(200,self.model()['profile']['bag_overrides']['5号木']['high'])
+  self.assertEqual(self.request('/journey',{'action':'snapshot'})[1],self.request('/journey',{'action':'replay'})[1])

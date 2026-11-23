@@ -1,5 +1,5 @@
 import {parseStrategyPreference} from './personalStrategy.ts';
-import {normalizeClub} from './bag.ts';
+import {normalizeClub,fairwayFinder} from './bag.ts';
 /** Small offline command grammar. Unknown speech does not become a golf fact. */
 export type Turn={commands:{command:string;data:Record<string,any>}[];text:string};
 const number=(s:string)=>/^\d+$/.test(s)?Number(s):(({'零':0,'一':1,'二':2,'两':2,'三':3,'四':4,'五':5,'六':6,'七':7,'八':8,'九':9,'十':10} as Record<string,number>)[s]??NaN);
@@ -109,4 +109,14 @@ export function localRuleError(message:string):string{
  if(message.startsWith('本机'))return message;
  const messages:Record<string,string>={'explicit score correction required':'这洞已确认成绩；需要修改时可说“更正这洞六杆两推”。','club required':'请先说明这杆实际使用的球杆。','resolve ball first':'请先处理原球及救济，再进行下一杆。','score below recorded strokes':'总杆少于已记录的击球、罚杆和推杆合计，请核对。','reported penalties disagree with ledger':'报告的罚杆与已处理的事故记录不一致，请先核对。','score or explicitly skip current hole first':'这洞还没有确认成绩，请先报成绩。','yellow has no lateral relief':'黄桩不能侧向两杆救济，请改选回原位或向后延线。','confirm or correct draft first':'先确认或更正待确认成绩。','hole already scored':'本洞已经确认成绩，需要更正时先撤销上次操作。','provisional not permitted for water-only risk':'仅可能进入罚杆区时不能按此流程打暂定球。','nothing to undo':'没有可撤销的本地操作。','penalty area color required':'请先说明红桩还是黄桩。','stroke required':'还没有对应的实际击球，请先确认已打这一杆。'};
  return messages[message]??'这次操作未保存。请核对当前球局状态，或使用下方可用选项。';
+}
+
+/** Identifying the trusted club answers a setup question; it is not a shot selection. */
+export function adaptFinderReply(state:any,turn:Turn,question:string|null):Turn{
+ if(!['finder_club','finder_carry'].includes(question??'')||turn.commands.length!==1)return turn;
+ const cmd=turn.commands[0],label=normalizeClub(String(cmd.data.club??''));
+ if(!/^(一号木|[3-9]号木|(?:[2-9]号)?铁木杆|[2-9]号铁)$/.test(label))return turn;
+ if(cmd.command==='select_club')return {text:'已记录保底开球杆。',commands:[{command:'set_fairway_finder',data:{club:label}}]};
+ if(cmd.command==='set_club_carry')return {text:'已记录保底开球杆和Carry。',commands:fairwayFinder(state.profile)===label?turn.commands:[...turn.commands,{command:'set_fairway_finder',data:{club:label}}]};
+ return turn;
 }

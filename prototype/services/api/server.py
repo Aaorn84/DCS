@@ -358,8 +358,12 @@ class Handler(BaseHTTPRequestHandler):
                     state=engine.state(rid,lazy=True);model=materialize(state.get('journey',{}).get('offline_local_round'))
                     if not model:raise Problem(409,'请先同步本场开始事件和当前球位')
                     intent=body.get('intent') or {}
-                    if not isinstance(intent,dict) or set(intent)-{'kind','exclude_club'} or intent.get('kind','default') not in ('default','conservative','layup','alternative'):raise Problem(400,'invalid shared strategy intent')
+                    if not isinstance(intent,dict) or set(intent)-{'kind','exclude_club','exclude_aim'} or intent.get('kind','default') not in ('default','conservative','layup','alternative'):raise Problem(400,'invalid shared strategy intent')
                     if intent.get('exclude_club') is not None:text(intent['exclude_club'],30)
+                    if intent.get('exclude_aim') is not None:
+                        point=intent['exclude_aim']
+                        if not isinstance(point,dict) or set(point)-{'latitude','longitude','accuracy_m'}:raise Problem(400,'invalid excluded aim')
+                        number(point.get('latitude'),-90,90);number(point.get('longitude'),-180,180);number(point.get('accuracy_m',0),0,10000)
                     from shared_core import plan
                     scope=user+'|'+rid+'|'+lease['lease_id']+'|'+lease['sha256']
                     projection={k:model.get(k) for k in ('core_version','round_id','hole','stage','position','profile','pins','lie','clean_contact','pending','draft','finished')}

@@ -72,7 +72,7 @@ class OfflineFirstTests(unittest.TestCase):
   try:
    from course_downloads import asset
    from phoenix_demo import ID
-   for core_version in ('1.4.0','1.5.0'):
+   for core_version in ('1.4.0','1.5.0','1.6.0'):
     legacy=json.loads(json.dumps(asset(ID)['package']));legacy['core_version']=core_version;raw=canonical(legacy);digest=hashlib.sha256(raw.encode()).hexdigest()
     context={'asset_sha256':digest,'profile':{},'dispersion':{},'history_by_hole':{}};context_raw=canonical(context);context_digest=hashlib.sha256(context_raw.encode()).hexdigest()
     engine.db.execute('INSERT INTO course_packages VALUES(%s,%s,%s,%s,%s)',(digest,ID,core_version,raw,time.time()))

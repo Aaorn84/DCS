@@ -1,12 +1,13 @@
+import {assessDistance,terrainResolver,ELEVATION_MODEL_VERSION} from './elevation.ts';
 /** Orchestrates system policy -> personal ranking -> course-specific plan. */
 import {bag,fairwayFinder} from './bag.ts';
 import {surfaces,frame,validPoint,distance,contains,classifyLocation,type Surface} from './geometry.ts';
 import {CORE_VERSION} from './protocol.ts';
 import {CoreRuleError,type Point} from './roundEngine.ts';
 import {courseCandidates as candidates,type Candidate} from './courseAnalysis.ts';
-import {rankCandidates,chooseTee,resolveStrategyPolicy} from './strategyPolicy.ts';
+import {rankCandidates,chooseTee,resolveStrategyPolicy,conservativeTee,STRATEGY_POLICY_VERSION} from './strategyPolicy.ts';
 import {personalStrategy} from './personalStrategy.ts';
-export type PlanIntent={kind?:'default'|'conservative'|'layup'|'alternative'|'aggressive';exclude_club?:string};
+export type PlanIntent={kind?:'default'|'conservative'|'layup'|'alternative'|'aggressive';exclude_club?:string;exclude_aim?:Point};
 const YARD=.9144;
 const names:Record<string,string>={water:'水域',ob:'白桩界外区',bunker:'沙坑'};
 const round=(n:number)=>Math.round(n);
@@ -14,6 +15,7 @@ function description(row:Candidate,unit:string,origin:Point,green:Point){
  const scale=unit==='米'?YARD:1,f=frame(origin),a=f.xy(row.aim_point),g=f.xy(green);let delta=(Math.atan2(a.x,a.y)-Math.atan2(g.x,g.y))*180/Math.PI;delta=(delta+540)%360-180;
  const aim=row.aim_label&&unit==='码'?row.aim_label:`果岭参考方向${Math.abs(delta)<1?'正前方':`${delta<0?'向左':'向右'}约${round(Math.abs(delta))}度`}的${row.target_surface==='green'?'果岭内落点':'球道'}`;
  let text=row.purpose_only?`${row.club}做沙坑短打，目标Carry约${round(row.carry_yards*scale)}${unit}，瞄${aim}。这不是已记录的常态杆距，需确认你能用熟悉的挥幅打出。`:`${row.club}Carry约${round(row.carry_yards*scale)}${unit}，瞄${aim}，预计落区横向约${round(row.width_yards*scale)}${unit}。`;
+ if(row.distance_assessment?.elevation_change_m!=null){const change=row.distance_assessment.elevation_change_m;text+=`落点相对当前球位${change>=0?'升高':'降低'}约${Math.abs(change).toFixed(1)}米；高差修正尚未校准，上述仍按水平距离估算，现场核对选杆及越障余量。`;}
  if(row.estimated)text+='这支杆的Carry按7号铁杆距暂估，实际执行前按你的杆距确认。';
  if(row.roll_yards)text+=`需落地后再滚约${round(row.roll_yards*scale)}${unit}，现场确认入口通畅且能滚再采用。`;
  if(row.crossings.length){const far=Math.max(...row.crossings.map(c=>c.far_m))/YARD;text+=`沿线有已标障碍，远沿约${round(far*scale)}${unit}；请现场确认飞越余量。`;}
@@ -32,7 +34,7 @@ export function planStrategy(pack:any,model:any,intent:PlanIntent={}){
  const personal=personalStrategy(model.profile??pack.profile??{},pack.dispersion);
  const policy=resolveStrategyPolicy(personal,intent.kind);
  const best=(rows:Candidate[],progress=true)=>rankCandidates(rows,policy,personal,progress);
- const base={policy_version:1,personal_strategy:personal,core_version:CORE_VERSION,options:[] as Candidate[],question:null as string|null,two_on_evaluated:false};
+ const base={elevation_model_version:ELEVATION_MODEL_VERSION,policy_version:STRATEGY_POLICY_VERSION,personal_strategy:personal,core_version:CORE_VERSION,options:[] as Candidate[],question:null as string|null,two_on_evaluated:false};
  const reply=(text:string,extra:any={})=>({...base,text,...extra});
  if(model.finished)return reply('本场已结束，可以查看成绩或同步记录。');
  if(model.pending)return reply('先确认原球结果并完成罚杆或救济处理，再讨论下一杆。');
@@ -62,7 +64,9 @@ export function planStrategy(pack:any,model:any,intent:PlanIntent={}){
  const note=pack.course.reference_simulation===true?'地图为来源坐标演示，现场边界和障碍以球场标示为准。':'现场确认风、球位和地图未覆盖的障碍。';
  if(lie==='rough'&&model.clean_contact==null)return reply('长草里球是浮着、能干净触球，还是埋得较深？',{question:'contact'});
  if(lie==='rough'&&model.clean_contact===false){const short=clubs.find(c=>c.label==='P杆')??clubs.find(c=>/度杆$/.test(c.label));return reply('深草先脱困，'+(short?'可考虑'+short.label+'用你熟悉的小挥幅，':'用你熟悉的短铁小挥幅，')+'先回到看得见的宽处；球道Carry不能直接用于判断这次深草能否飞越障碍。'+note);}
- const target=pinReference(model,hole,all,origin,green),remaining=distance(origin,target)/YARD,seven=clubs.find(c=>c.label==='7号铁');
+ const target=pinReference(model,hole,all,origin,green);
+ const elevation=assessDistance(origin,target,terrainResolver(hole));Object.assign(base,{distance_assessment:elevation});
+ const remaining=distance(origin,target)/YARD,seven=clubs.find(c=>c.label==='7号铁');
  function recommend(row:Candidate,label=''){return label+description(row,unit,origin,green);}
  function layup(){
   const available=clubs.filter(c=>!c.driver&&(lie!=='bunker'||c.role==='沙坑'));
@@ -74,18 +78,26 @@ export function planStrategy(pack:any,model:any,intent:PlanIntent={}){
   return best(options.filter(r=>!/号木$/.test(r.club)||r.penalty_samples===0&&r.bunker_samples===0&&r.rough_samples===0&&r.width_yards>=Math.max(40,r.carry_yards*.22)));
  }
  if(atTee&&hole.par>=4){
-  const teeOptions=candidates(pack,model,hole,all,clubs.filter(c=>c.high<remaining+10),'fairway',origin,green).filter(r=>r.progress>10),driver=best(teeOptions.filter(r=>r.club==='一号木'));
-  const finder=fairwayFinder(profile);let selected:Candidate|undefined;
-  if((intent.kind==='conservative'||intent.kind==='alternative')&&finder&&!clubs.some(c=>c.label===finder))return reply('你设置的保底开球杆是'+finder+'，稳定Carry大概多少？可以直接报杆名和码数。',{question:'finder_carry',missing_club:finder});
+  const finder=fairwayFinder(profile),finderClub=clubs.find(c=>c.label===finder),completeFinder=Boolean(finderClub&&!finderClub.estimated&&!finderClub.purposeOnly);
+  if(intent.kind==='conservative'&&!finder)return reply('哪支杆是你最有把握的保底开球杆，稳定Carry大概多少？可以一起说“5号木200码”；不清楚也可以先问“其他方案”。',{question:'finder_club'});
+  if(intent.kind==='conservative'&&!completeFinder)return reply('你设置的保底开球杆是'+finder+'，稳定Carry大概多少？可以直接报杆名和码数；也可以先问“其他方案”。',{question:'finder_carry',missing_club:finder});
+  const teeOptions=candidates(pack,model,hole,all,clubs.filter(c=>!c.purposeOnly&&c.high<remaining+10),'fairway',origin,green).filter(r=>r.progress>10);
+  const alternatePersonal=completeFinder?personal:{...personal,finder:null};let selected:Candidate|undefined;let comparableAlternative=false;
   if(intent.kind==='conservative'||intent.kind==='alternative'){
-   const others=teeOptions.filter(r=>r.club!==(intent.exclude_club??driver?.club));
-   const safer=others.filter(r=>!driver||r.risk<driver.risk||r.penalty_samples<=driver.penalty_samples&&r.bunker_samples<=driver.bunker_samples&&r.width_yards>driver.width_yards+3);
-   selected=best(safer.filter(r=>r.club===finder))??best(safer);
-   if(!selected)return reply('按现有地图和杆距，暂未核对到风险更低且能正常推进的另一落区；请补充保底开球杆或核对现场可用区域。');
+   const matching=teeOptions.filter(r=>r.club===intent.exclude_club);
+   const reference=intent.exclude_club?(validPoint(intent.exclude_aim)?best(matching.filter(r=>distance(r.aim_point,intent.exclude_aim!)<1)):undefined)??best(matching):chooseTee(teeOptions,resolveStrategyPolicy(alternatePersonal),alternatePersonal);
+   const others=teeOptions.filter(r=>r.club!==(intent.exclude_club??reference?.club)||completeFinder&&r.club===finder&&(!intent.exclude_club||intent.exclude_club===finder&&validPoint(intent.exclude_aim)&&distance(r.aim_point,intent.exclude_aim!)>5*YARD));
+   const alternate=conservativeTee(others,reference,alternatePersonal,policy);selected=alternate.selected;comparableAlternative=Boolean(selected&&!alternate.map_improved);
+   if(!selected){
+    if(finder&&reference?.club===finder&&intent.kind==='conservative'&&!intent.exclude_club){selected=reference;comparableAlternative=true;}
+    else if(finder){const mapped=teeOptions.some(r=>r.club===finder);return reply(mapped?'保底开球杆和Carry已记录，但它的已核对落区仍有较高的障碍暴露，暂不作为更稳的替代。可以换一支杆比较，或现场核对可用方向。':'保底开球杆和Carry已记录，但地图尚未核对到这支杆可用的球道落点。请确认现场可用落区，或换一支杆比较。',{unavailable_reason:mapped?'finder_hazard_exposure':'finder_landing'});}
+    if(!selected)return reply('按现有地图和杆距，暂未核对到可用的替代落区。若有尚未记录的球杆，可以补充Carry；也可以现场确认可用区域。',{unavailable_reason:'alternative_landing'});
+   }
   }else selected=chooseTee(teeOptions,policy,personal);
   if(!selected)return reply('暂未核对到可用开球落区，请补充球杆Carry或现场可用落区。',{question:clubs.length?'landing':'carry'});
   let text=recommend(selected)+`按Carry落点估算，下一杆到果岭参考点直线约${round(selected.remaining_yards*scale)}${unit}；尚未计入滚动，不是旗杆距离。`;
   if(selected.club===finder&&intent.kind!=='default')text+='这是你设置的保底开球杆。';
+  if(comparableAlternative)text+='地图比较未显示风险明显降低，按你对这支杆的把握选择。';
   if(hole.par===5){
    const fairway=clubs.filter(c=>!c.driver),longKnown=fairway.some(c=>!c.estimated&&(c.wood||/铁木杆|^[34]号铁$/.test(c.label)));
    if(!longKnown&&!profile.fairway_carry_status)return reply('你有3号木、5号木或铁木杆吗？各自稳定Carry多少？已有暂估的长铁无需重复报，没有可以说跳过。',{question:'fairway_carry'});
@@ -100,7 +112,7 @@ export function planStrategy(pack:any,model:any,intent:PlanIntent={}){
    else text+='预计第二杆尚未核对到可用攻果岭落点，先按三杆上果岭安排。';
    return reply(text+note,{options:[selected],two_on_evaluated:true,approach:attack??null});
   }
-  return reply(text+note,{options:[selected]});
+  return reply(text+note,{options:[selected],...(comparableAlternative?{comparison:selected.club===finder?'comparable_finder':'comparable_alternative'}:{})});
  }
  if(!model.pins?.[String(model.hole)])return reply('旗在果岭哪里？可以说“左前”“中部”“右后”，不清楚可以跳过。',{question:'pin'});
  const attackClubs=clubs.filter(c=>!c.driver&&(lie!=='bunker'||c.role==='沙坑'));

@@ -83,7 +83,7 @@ class JourneyHTTPTests(unittest.TestCase):
    engine.db.execute('UPDATE rounds SET state=%s WHERE owner=%s AND id=%s',(canonical(state),owner,'companion-journey'))
   finally:engine.close()
   request={'action':'offline_prepare','device_id':'phone-one','expected_version':0,'local_engine_version':1,'core_version':'old'}
-  self.assertEqual(400,self.call('/journey',request,self.token)[0]);request['core_version']='1.6.0'
+  self.assertEqual(400,self.call('/journey',request,self.token)[0]);request['core_version']='1.7.0'
   code,prepared=self.call('/journey',request,self.token);self.assertEqual(200,code,prepared);lease=prepared['offline'];at=datetime.now(timezone.utc).isoformat()
   point=mapped['holes'][0]['simulation_positions']['tee'];point={k:point[k] for k in ('latitude','longitude','accuracy_m')}
   events=[]

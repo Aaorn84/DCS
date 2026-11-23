@@ -1,0 +1,18 @@
+{
+  "core_version": "1.6.0",
+  "dataset": "shared-core-4",
+  "files": {
+    "bag.ts": "2b95cee09ea5f9c1737a1686b9613d721fcb82c7d300b916e8de9bba73cf297f",
+    "courseAnalysis.ts": "dba4b78521324b6d8f1cba8e725fc60cf7c00de6e8c950937fee50cd7495c77b",
+    "dialogue.ts": "c28f1c7ec3eabde153b6655de1f992eea6a55a2f0003ace9ca3b80d5ee52f5a5",
+    "geometry.ts": "04c79d5dd4d99dc544c1d1ce5dafad9cb880a0c2e7202deab181bb92bf604aed",
+    "offlineSetup.ts": "485fac0f7b3eb56d53f1da767b6d5c4d777a4746f36430e66f139069734010b8",
+    "personalStrategy.ts": "7eb7801d1f29a9d63d4351050ce230d98a35e7170b021af466e1a60d17da4811",
+    "profileMemory.ts": "79bd55b66c3bf8682d0462d0ae7d9ad4742218c449eddd5bc88cda3abc00fb35",
+    "protocol.ts": "a203c8f1105eb78c23e1217b4cf98163965e712db2ea545e81484bb507ce5d4e",
+    "roundEngine.ts": "2230ca90cf3f0ace14e51c9151f9cfcbd71404c140be51e442c06d70e6a97bed",
+    "strategy.ts": "99bfcc0667d18f3c9359a1bf0d70d52e722c228337d61f46ea3a2f4bcca9062a",
+    "strategyPolicy.ts": "6291d1adf5764f459bbf9cce759783db492ee7dadfcd750e511ba19ba560709b",
+    "webJourney.ts": "3b73e1961a3b5606fce4568c8bd24e2cb4175f1d344849301256f226a20d29c9"
+  }
+}

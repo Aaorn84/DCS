@@ -1,6 +1,6 @@
-策略分层详见 [统一规则与分层策略](strategy-layers.md)，当前共用核心1.6.0。
+策略分层详见 [统一规则与分层策略](strategy-layers.md)，当前共用核心1.7.0。
 
-# 共用核心架构（1.6.0）
+# 共用核心架构（1.7.0）
 
 ## 可执行代码与边界
 
@@ -46,7 +46,7 @@
 
 ## 版本与缓存
 
-`/journey` 声明 `offline_protocol:3` 与 `shared_core_version:1.6.0`。本机准备和固定包带核心版本。新球局用当前版本；既有1.4/1.5球局由版本运行器继续执行，包和模型版本混用或未知版本会拒绝。详见[升级续局](versioned-round-resume.md)。
+`/journey` 声明 `offline_protocol:3` 与 `shared_core_version:1.7.0`。本机准备和固定包带核心版本。新球局用当前版本；既有1.4/1.5球局由版本运行器继续执行，包和模型版本混用或未知版本会拒绝。详见[升级续局](versioned-round-resume.md)。
 
 手机仅缓存当前实例的一份策略；键含包摘要、球局ID、状态revision和意图。球位、旗位、球杆/Carry或球洞变化都会使其失效。地图几何缓存使用不可变地图对象的WeakMap，并分别隔离模拟与非模拟模式。
 
@@ -96,7 +96,7 @@ python -B prototype/scripts/run_local_tests.py --suite benchmark
 
 `benchmark_web_core.py`在darwin arm64、Python3.12/Node24、临时SQLite和本地HTTP上，凤凰山第1洞各30次询问、紧凑返回视图：旧入口p50/p95为10.104/11.518ms，共用入口为4.013/5.672ms。第一次询问约9.066ms。开局由81.703ms增至214.705ms，增加部分是一次性固化和注册地图资料，不隐藏此成本。测试不含浏览器渲染、ASR/TTS或真实网络，不能当作端到端语音指标；测试脚本不包含球洞专用优化逻辑。
 
-网页部署后需刷新页面。当前匹配核心版本为1.6.0，原生构建必须使用匹配的核心；真机GPS/语音与原生完整构建仍未完成验收。
+网页部署后需刷新页面。当前匹配核心版本为1.7.0，原生构建必须使用匹配的核心；真机GPS/语音与原生完整构建仍未完成验收。
 
 
 ### 网页救济定位补充
@@ -112,3 +112,5 @@ python -B prototype/scripts/run_local_tests.py --suite benchmark
 后台数据库现已统一PostgreSQL，旧SQLite库及适配已删除，开发/测试入口见[postgres-only.md](postgres-only.md)。前述SQLite性能数据仅为历史记录。
 
 2026-11-23一致性修复：默认1.6，兼容1.4/1.5固定核心；Carry等档案按字段版本继承与合并，未结束独立手机球局禁止释放。详见[四项修复](four-consistency-fixes.md)。
+
+当前保守方案筛选与保底杆补报后的重新规划已修复，详见[保底杆修复](conservative-finder-fix.md)。新球局使用1.7，1.4/1.5/1.6固定核心保持不变。

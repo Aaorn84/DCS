@@ -8,7 +8,7 @@
   "international_protocol": 4,
   "internationalization": "0.1.0",
   "training_dataset_schema": 1,
-  "shared_core": "1.6.0",
+  "shared_core": "1.7.0",
   "application_services": "1.1.0",
   "legacy_retired": "2026-11-23",
   "core_dataset": "shared-core-4",
@@ -22,7 +22,10 @@
   "supported_round_cores": [
     "1.4.0",
     "1.5.0",
-    "1.6.0"
+    "1.6.0",
+    "1.7.0"
   ],
-  "profile_memory": "1.0.0"
+  "profile_memory": "1.0.0",
+  "strategy_policy": 4,
+  "elevation_model": 1
 }
