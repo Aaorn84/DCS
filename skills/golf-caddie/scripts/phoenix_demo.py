@@ -32,7 +32,7 @@ def preview(number,snapshot=None):
 
 def generate(normalized,route):
  """Derive demo geometry from real vertices. Source paths stay unchanged in display_paths."""
- from lie_position import polygon_contains
+ from surface_uncertainty import polygon_contains
  confirmation=normalized.get('coordinate_confirmation',{})
  if normalized.get('source',{}).get('public_id')!='B87QFJP7' or confirmation.get('crs')!='WGS84' or confirmation.get('source_sha256')!=normalized['source']['sha256']:raise ValueError('confirmed Phoenix WGS84 source required')
  rows=route.get('holes',[])

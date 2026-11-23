@@ -1,14 +1,16 @@
 import copy,sys,unittest
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[3]/'prototype'))
+from testing.database import TestDatabase
 from international import config,parse_fixture,validate_candidate,canonical_message,impact,snapshot
 from round_state import Engine,StateError,fact_value
 
 class InternationalTests(unittest.TestCase):
- def setUp(self):self.e=Engine(':memory:','test');self.e.create('i');self.n=0
- def tearDown(self):self.e.close()
+ def setUp(self):self.database=TestDatabase();self.e=Engine(self.database.url,'test');self.e.create('i');self.n=0
+ def tearDown(self):self.e.close();self.database.cleanup()
  def send(self,kind='semantic',**v):
-  self.n+=1;p=dict(protocol_version=2,event_id='e'+str(self.n),observed_at='2026-11-08T00:00:00Z',type=kind,**v);self.last=p
+  self.n+=1;p=dict(protocol_version=4,core_scope='test-owner|i',event_id='e'+str(self.n),observed_at='2026-11-08T00:00:00Z',type=kind,**v);self.last=p
   return self.e.command('i','op'+str(self.n),'international_event',p,now=1794096000)
  def semantic(self,kind,**slots):return self.send(candidate=dict(type=kind,slots=slots))
  def configure(self,locale):return self.send('configure',configuration=dict(locale=locale))
@@ -72,7 +74,7 @@ class InternationalTests(unittest.TestCase):
    with self.subTest(locale=locale):
     self.configure(locale)
     self.semantic('state_transition',action='skip_onboarding')
-    self.semantic('profile_answer',course='synthetic-demo')
+    self.semantic('profile_answer',course='dongguan-phoenix-ab-blue-demo')
     self.semantic('profile_answer',tee='blue')
     self.semantic('profile_answer',number=1)
     self.semantic('player_intent',approach='conservative')
@@ -88,17 +90,17 @@ class InternationalTests(unittest.TestCase):
     self.semantic('state_transition',action='finish_confirm')
     self.assertEqual(self.e.state('i'),self.e.replay('i'))
     self.assertFalse(self.e.state('i')['journey']['coach']['enabled'])
-    self.e.close();self.e=Engine(':memory:','test');self.e.create('i')
+    self.e.close();self.database.cleanup();self.database=TestDatabase();self.e=Engine(self.database.url,'test');self.e.create('i')
  def test_full_first_use_across_languages(self):
   for locale in ('en-US','en-GB','ja-JP','ko-KR'):
    with self.subTest(locale=locale):
     self.configure(locale)
-    for slots in [dict(memory=False),dict(name='Alex'),dict(proactive=True),dict(shot_recording=False),dict(number=240),dict(number=160),dict(miss='right'),dict(course='synthetic-demo'),dict(tee='blue'),dict(number=1)]:
+    for slots in [dict(memory=False),dict(name='Alex'),dict(proactive=True),dict(shot_recording=False),dict(number=240),dict(number=160),dict(miss='right'),dict(course='dongguan-phoenix-ab-blue-demo'),dict(tee='blue'),dict(number=1)]:
      self.semantic('profile_answer',**slots)
     self.semantic('state_transition',action='start')
     self.assertEqual(self.e.state('i')['journey']['stage'],'active')
     self.assertEqual(self.e.state('i'),self.e.replay('i'))
-    self.e.close();self.e=Engine(':memory:','test');self.e.create('i')
+    self.e.close();self.database.cleanup();self.database=TestDatabase();self.e=Engine(self.database.url,'test');self.e.create('i')
  def test_profile_number_cannot_answer_score_question(self):
   self.semantic('state_transition',action='skip_onboarding')
   with self.assertRaises(ValueError):self.semantic('profile_answer',number=160)

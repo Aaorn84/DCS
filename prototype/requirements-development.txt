@@ -1,0 +1,3 @@
+-r requirements-production.txt
+# Optional bundled PostgreSQL server for local development; no alternative DB engine.
+pgserver==0.1.4

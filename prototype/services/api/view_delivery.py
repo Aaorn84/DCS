@@ -1,6 +1,6 @@
 """Optional stateless section validation; clients without it still receive full views."""
 import hashlib,json
-SECTIONS=('simulation.paths','simulation.test_stakes','simulation.positions','round_records','score_summary','profile','carry_estimates','history','round_review')
+SECTIONS=('simulation.paths','simulation.test_stakes','simulation.positions','round_records','score_summary','profile','carry_estimates','core_carry','history','round_review')
 
 def compact(view,known):
     out=dict(view);revisions={};unchanged=[]

@@ -2,7 +2,7 @@
 from round_state import fact_value
 
 def analyze(state):
- from journey import summary
+ from round_view import summary
  rows=summary(state)['scores']
  snapshot=state.get('evidence',{}).get(fact_value(state,'context.course_snapshot'),{}).get('data',{})
  pars={h['number']:h['par'] for h in snapshot.get('holes',[]) if h.get('par') in (3,4,5)}

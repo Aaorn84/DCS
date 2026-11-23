@@ -4,11 +4,11 @@ from shot_evidence import haversine
 from shot_review_evidence import counted,replay_origin_conflicts
 
 def review(state,number):
- from journey import summary,round_records
+ from round_view import summary,round_records
  rows=summary(state)['scores'];score=next((r for r in rows if r['hole']==number),None)
  clubs=[r for r in round_records(state)['clubs'] if r.get('hole')==number and r.get('source')!='score_placeholder' and r.get('club')!='推杆']
  if not score and not clubs:return f'第{number}洞暂无已确认的成绩或实际用杆记录。可以换一洞。'
- j=state['journey'];eid=fact_value(state,'context.course_snapshot');key=canonical([(j.get('round') or {}).get('id'),eid,number]);flow=j.get('ball_rules',{}).get(key,{})
+ j=state['journey'];eid=fact_value(state,'context.course_snapshot');key=canonical([(j.get('round') or {}).get('id'),eid,number]);flow=j.get('round_ledger',{}).get(key,{})
  shots=counted(flow);conflicts=replay_origin_conflicts(flow);shot_numbers={r['id']:r['stroke_number'] for r in shots}
  course=state.get('evidence',{}).get(eid,{}).get('data',{});hole=next((h for h in course.get('holes',[]) if h['number']==number),{});par=hole.get('par')
  unit=j.get('profile',{}).get('units',{}).get('value','码');scale=1 if unit=='米' else .9144

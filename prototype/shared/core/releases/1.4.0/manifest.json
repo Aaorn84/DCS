@@ -1,0 +1,14 @@
+{
+  "core_version": "1.4.0",
+  "dataset": "shared-core-4",
+  "files": {
+    "bag.ts": "2b95cee09ea5f9c1737a1686b9613d721fcb82c7d300b916e8de9bba73cf297f",
+    "dialogue.ts": "2c7369381601b4ae4952f358fcf80707564f2be8c2b7f04c8becdeb7105c9660",
+    "geometry.ts": "04c79d5dd4d99dc544c1d1ce5dafad9cb880a0c2e7202deab181bb92bf604aed",
+    "offlineSetup.ts": "d5547c3f0e53342c594e6242c63f46fd729cef300fe6448342c37199b4fc0509",
+    "protocol.ts": "ecc78b4e81e13e0d68727af20ce871b4922bcc3052c6bb3292380dcbadbc7d6b",
+    "roundEngine.ts": "d49750b057d3b3f29ba36e519e4278552c8088547c330d5ef55da83ede7477bf",
+    "strategy.ts": "facbfa901d966eb52c25ba6363d06a754679a54fb89a3d749a8b4b0a55362da6",
+    "webJourney.ts": "3d956c0b1f1063f9a708d8771da90b961d8c7e38f2ea20bd1280ef522d69501a"
+  }
+}

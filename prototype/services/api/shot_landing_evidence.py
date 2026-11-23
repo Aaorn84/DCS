@@ -1,7 +1,7 @@
 """Landing surface evidence, preserving user confirmation ahead of map inference."""
 from round_state import canonical,fact_value
-from tee_geometry import mapped_polygons,polygon_contains
-from lie_position import polygon_contains as uncertainty_contains
+from report_geometry import mapped_polygons,polygon_contains
+from surface_uncertainty import polygon_contains as uncertainty_contains
 
 LABELS={'bunker':'沙坑','water':'水域','ob':'界外区域','green':'果岭','fairway':'球道','rough':'长草','fringe':'果岭环','unknown':'球位类型未确认'}
 

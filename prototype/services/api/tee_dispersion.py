@@ -3,21 +3,8 @@ import math,copy
 from round_state import canonical,fact_value
 from shot_evidence import haversine
 
-def capture(state,flow):
- j=state['journey'];last=j.get('last_consultation') or {};decision=last.get('decision') or {}
- opening=flow.get('open_shot') or {};point=decision.get('aim_point')
- if not point or decision.get('club')!=opening.get('club'):return
- if decision.get('hole')!=flow['scope'][2]:return
- # A stale discussion must not lend its target to a later shot.
- plans=[p for p in j.get('player_decisions',[]) if p.get('round_scope')==flow['scope']]
- if not plans or plans[-1].get('club')!=decision.get('club'):return
- origin=opening.get('origin')
- version=decision.get('position_version');position=state.get('facts',{}).get('context.device_position',{})
- if version is None or version!=position.get('version') or not origin:return
- opening['confirmed_target']=dict(point=copy.deepcopy(point),source='user_confirmed_plan',decision_event=plans[-1]['event_id'],scope=list(flow['scope']))
-
 def sync(state):
- from ball_rules import current
+ from projected_ledger import current
  j=state.get('journey',{});flow=current(state)
  if not flow:return
  opening=flow.get('open_shot') or {};target=opening.get('confirmed_target')

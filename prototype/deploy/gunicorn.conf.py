@@ -1,0 +1,20 @@
+import os
+bind=os.environ.get('CADDIE_BIND','127.0.0.1:8787')
+workers=int(os.environ.get('CADDIE_API_WORKERS','2'))
+worker_class='gthread'
+threads=int(os.environ.get('CADDIE_HTTP_THREADS','8'))
+worker_connections=64
+backlog=128
+timeout=45
+graceful_timeout=45
+keepalive=5
+max_requests=10000
+max_requests_jitter=1000
+preload_app=False
+accesslog=None  # application metrics omit account data and credentials
+errorlog='-'
+capture_output=True
+forwarded_allow_ips=os.environ.get('CADDIE_FORWARDED_ALLOW_IPS','127.0.0.1')
+limit_request_line=4094
+limit_request_fields=50
+limit_request_field_size=4096

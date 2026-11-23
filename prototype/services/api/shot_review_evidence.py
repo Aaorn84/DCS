@@ -2,7 +2,7 @@
 from shot_evidence import haversine
 
 def counted(flow):
- from ball_rules import ball_counts
+ from projected_ledger import ball_counts
  number=0;shots=[]
  for index,item in enumerate(flow.get('sequence',[])):
   if not item.get('active',True) or item.get('ball_id') not in flow.get('balls',{}) or not ball_counts(flow,item['ball_id']):continue

@@ -8,7 +8,7 @@ def requested(text):
  return bool(re.search(r'分析|总结|复盘|回顾',clean) and re.search(r'这场|本场|今天|整场|球局|成绩|打得|打的',clean)) or clean in ('分析','总结','分析总结','总结分析','复盘','回顾','分析一下','总结一下','分析总结一下','复盘一下','回顾一下','做个总结','做个分析','赛后分析','赛后总结')
 
 def detailed_review(state):
- from journey import summary
+ from round_view import summary
  rows=summary(state)['scores']
  if not rows:return '本场还没有已确认的每洞成绩，暂时无法汇总总杆、推杆和罚杆。可以先补记成绩，再做分析。'
  def aggregate(items):
@@ -46,7 +46,7 @@ def detailed_review(state):
 
 
 def focus(state):
- from journey import summary
+ from round_view import summary
  rows=summary(state)['scores']
  threes=[r for r in rows if type(r['putts']) is int and r['putts']>=3]
  penalties=[r for r in rows if type(r['penalties']) is int and r['penalties']>0]
@@ -60,7 +60,7 @@ def focus(state):
  return dict(kind='review',holes=[],finding='可以先挑一洞，结合实际用杆和落点回看过程。',action='下场继续记录实际落点，逐步找出更适合自己的球杆和路线。')
 
 def review(state):
- from journey import summary
+ from round_view import summary
  rows=summary(state)['scores']
  if not rows:return '本场还没有已确认的每洞成绩，可以先补记成绩，再一起复盘。'
  total=sum(r['total'] for r in rows)

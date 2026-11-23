@@ -6,9 +6,10 @@ import {ExpoSpeechRecognitionModule as Recognition} from 'expo-speech-recognitio
 
 export type SpokenReply={text:string;pause?:boolean};
 /** Foreground voice loop. Explicitly pauses on background; no false lock-screen claim. */
-export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>, locale:VoiceLocale='zh-CN') {
+export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>, locale:VoiceLocale='zh-CN', offline=false) {
   voiceLocale(locale);
   const language=useRef(locale);
+  const offlineMode=useRef(offline);offlineMode.current=offline;
   const [status,setStatus]=useState('尚未开启语音');
   const [enabled,setEnabled]=useState(false);
   const [transcript,setTranscript]=useState('');
@@ -23,7 +24,7 @@ export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>, locale
     if(!active.current||AppState.currentState!=='active')return;
     received.current=false;setStatus('正在听你说');
     Recognition.start({lang:language.current,interimResults:true,continuous:false,
-      contextualStrings:speechHints[language.current],
+      contextualStrings:speechHints[language.current],requiresOnDeviceRecognition:offlineMode.current,
       recordingOptions:{persist:false}});
   }
   async function speak(text:string, resume=true) {
@@ -40,6 +41,7 @@ export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>, locale
   async function start() {
     try {
       if(Platform.OS==='web')throw new Error('网页仅预览流程；请用原生开发版验证麦克风和语音。');
+      if(offlineMode.current&&!Recognition.supportsOnDeviceRecognition())throw new Error('本机没有可用的离线语音模型，请使用文字或按钮完成记分。');
       if(!Recognition.isRecognitionAvailable())throw new Error('设备语音识别不可用，请使用文字备用入口。');
       const permission=await Recognition.requestPermissionsAsync();
       if(!permission.granted)throw new Error('未获得麦克风或语音识别权限，可使用文字备用入口。');
@@ -59,7 +61,7 @@ export function useVoice(onUtterance:(text:string)=>Promise<SpokenReply>, locale
           if(current!==generation.current||!active.current)return;
           if(response.text)await speak(response.text,!response.pause);
           else if(response.pause)stop();else listen();
-        } catch {stop();setStatus('这次语音交互未完成，记录保持原状，请重试。');}
+        } catch {stop();setStatus('这次语音反馈未完成，请查看已保存记录，再决定是否重试。');}
         finally {processing.current=false;}
       })();
     });

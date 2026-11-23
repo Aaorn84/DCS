@@ -48,7 +48,7 @@ metadata:
 
 ## 完整旅程入口
 
-从首次认识到下一场恢复的运行与验收，加载[完整旅程运行协议](references/complete-journey.md)，使用journey.py与认证/ journey接口（实际路径`/journey`）。档案、教练与球局共用事务日志；不把合成流程当实地或通用语义验证。
+从首次认识到下一场恢复的运行与验收，加载[完整旅程运行协议](references/complete-journey.md)，使用独立onboarding/postgame_service应用服务与认证`/journey`的`core_event`入口。档案、教练与球局共用事务日志；不把合成流程当实地或通用语义验证。
 
 ## 首次相处与逐步了解
 
@@ -99,9 +99,9 @@ metadata:
 
 ## 逐杆语音归因与状态引擎接入
 
-处理标准化语音事件分类、建议—意图—决定—执行—结果—自述原因链、策略影响分级或逐杆修正时，加载 [逐杆归因协议与原型](references/shot-attribution-protocol.md)。使用shot_chain和本地JSON入口；复杂原始语言仍由上游产生候选，不把限定原型当通用ASR。执行绑定已建立的未完成击球，不改长期球包；多义且影响当前策略只问一项，低影响保留候选不打断，证据不足不造杆序或carry。修正撤回相关学习候选，保留独立GPS与成绩。
+处理标准化语音事件分类、建议—意图—决定—执行—结果—自述原因链、策略影响分级或逐杆修正时，加载 [逐杆归因协议与原型](references/shot-attribution-protocol.md)。旧shot_chain和本地JSON入口已退役，实际归因由shared/core执行；复杂原始语言仍由上游产生候选，不把限定原型当通用ASR。执行绑定已建立的未完成击球，不改长期球包；多义且影响当前策略只问一项，低影响保留候选不打断，证据不足不造杆序或carry。修正撤回相关学习候选，保留独立GPS与成绩。
 
-联调三类输入、APP会话、逐项记分与确认时，加载 [三路输入会话协议](references/round-session-protocol.md)。已有round_session适配器及独立认证API/手机联调原型；当前距离来自设备到果岭中心，不等于球位/旗杆或carry。限定语法、合成测试与前台接线不代表真实GPS、通用语义理解或锁屏/耳机已经验证。
+联调三类输入、APP会话、逐项记分与确认时，加载 [三路输入会话协议](references/round-session-protocol.md)。旧round_session适配器、独立会话API及手机联调页已退役，统一使用core_event与shared/core；当前距离来自设备到果岭中心，不等于球位/旗杆或carry。限定语法、合成测试与前台接线不代表真实GPS、通用语义理解或锁屏/耳机已经验证。
 
 设计或接入多轮语音归因、歧义追问、状态提交与撤销时，加载 [下一阶段球局状态架构](references/round-state-architecture.md)。已提供 [状态引擎运行与接入](references/round-state-runtime.md) 中的SQLite实现、保守中文归因与JSON-lines入口。先保留证据与候选解释，再按策略影响决定追问或暂存；变更须可校验、可追溯并按依赖回滚。宿主须以认证身份调用，模型仅产候选；不得把聊天推断当已保存事实。内核可运行不等于真实语音、GPS或APP已经接通。
 

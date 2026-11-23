@@ -1,6 +1,6 @@
 """Derive scoped FIR/GIR from counted shot endpoints, never total minus putts."""
 from round_state import fact_value,canonical
-from tee_geometry import mapped_polygons,polygon_contains,planning_geometry_cache
+from report_geometry import mapped_polygons,polygon_contains,planning_geometry_cache
 from shot_evidence import haversine
 
 @planning_geometry_cache
@@ -12,15 +12,15 @@ def calculate(state,scores,pars):
   number=score['hole'];par=pars.get(number);hole=holes.get(number,{})
   out=dict(hole=number,fir=None,gir=None,green_stroke=None)
   details.append(out)
-  flow=j.get('ball_rules',{}).get(canonical([rid,eid,number]))
+  flow=j.get('round_ledger',{}).get(canonical([rid,eid,number]))
   if not flow or flow.get('pending'):continue
-  from ball_rules import ball_counts
+  from projected_ledger import ball_counts
   events=[v for v in flow.get('sequence',[]) if v.get('active',True) and v.get('ball_id') in flow.get('balls',{}) and ball_counts(flow,v['ball_id'])]
   strokes=[v for v in events if v['kind']=='stroke']
   if not strokes:continue
   first=strokes[0];origin=first.get('origin');tee=hole.get('simulation_positions',{}).get('tee');bbox=hole.get('tee_bbox')
   if not origin:continue
-  from gps_transition import inside
+  from report_geometry import inside
   at_tee=(tee and haversine(tee,origin)<=10) or (isinstance(bbox,list) and len(bbox)==4 and inside(bbox,origin))
   if not at_tee:continue
   polygons=mapped_polygons(hole,course.get('reference_simulation') is True)

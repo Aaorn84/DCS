@@ -20,7 +20,6 @@ def handle(state,text,event_id):
   return '哪支杆是你最信任的保底开球杆？可以选一号木、球道木、铁木杆或铁杆；随时可以更换或取消。'
  if body in ('跳过','取消','不知道'):
   j.pop('finder_pending',None);return '这次先不设置保底开球杆。'
- from tee_strategy import reported_carry_clubs
  unit=j.get('profile',{}).get('units',{}).get('value','码')
  if pending and pending.get('phase')=='carry':
   distance=re.fullmatch(r'(?:Carry|carry)?(\d{2,3})(码|米)?',body)
@@ -39,7 +38,7 @@ def handle(state,text,event_id):
   j.pop('finder_pending',None);return None
  if not chosen:return '请报保底开球杆的杆名，例如“5号木”或“4号铁”；也可以跳过。'
  j.setdefault('profile',{})['fairway_finder']=dict(value=dict(club_key=chosen['key'],club_name=chosen['label']),source='user_report',event_id=event_id)
- if chosen['key'] not in reported_carry_clubs(j['profile']):
+ if j['profile'].get(chosen['key'],{}).get('value',{}).get('distance_type')!='carry':
   j['finder_pending']=dict(round=rid,phase='carry',key=chosen['key'],label=chosen['label'])
   return '已将'+chosen['label']+'设为保底开球杆。它稳定Carry大概多少？不清楚可以跳过。'
  j.pop('finder_pending',None)

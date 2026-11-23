@@ -1,30 +1,26 @@
-"""Scoped prior shot evidence: one miss is a note; repeated similar misses add risk."""
-import copy,hashlib,math
+"""Scoped prior shot evidence: archived compact inputs for the shared strategy core."""
+import copy,hashlib
 from round_state import canonical,fact_value
-from shot_evidence import haversine
-from tee_geometry import mapped_polygons,polygon_contains,_geometry_cache
+from report_geometry import mapped_polygons,_geometry_cache
 
 STRATEGY_HISTORY_ROUNDS=5
 
 def _tee(value):
  return value.replace('Tee','台').replace('tee','台') if isinstance(value,str) else None
 
-def _club(value):
- return (value or '').lower().replace('号','').replace('一','1').replace('三','3').replace('五','5').replace('混合杆','铁木杆')
-
 def _signature(hole):
- fields=('number','source_hole_id','par','published_yardage','display_paths','surface_zones','objects','tee_bbox','green_bbox','simulation_positions')
+ fields=('number','source_hole_id','par','published_yardage','display_paths','surface_zones','objects','tee_bbox','green_bbox','simulation_positions','boundary_segments')
  return hashlib.sha256(canonical({k:hole.get(k) for k in fields}).encode()).hexdigest()
 
 def _course(state):
  return state.get('evidence',{}).get(fact_value({'facts':state.get('facts',{})},'context.course_snapshot'),{}).get('data',{})
 
 def _archive(state,rid,eid,course,only_hole=None):
- from ball_rules import ball_counts
+ from projected_ledger import ball_counts
  j=state.get('journey',{});out={}
  for hole in course.get('holes',[]):
   if only_hole is not None and hole['number']!=only_hole:continue
-  number=hole['number'];flow=j.get('ball_rules',{}).get(canonical([rid,eid,number]))
+  number=hole['number'];flow=j.get('round_ledger',{}).get(canonical([rid,eid,number]))
   if not flow or flow.get('pending'):continue
   from shot_review_evidence import replay_origin_conflicts,counted
   stroke_numbers={r['id']:r['stroke_number'] for r in counted(flow)}
@@ -38,7 +34,7 @@ def _archive(state,rid,eid,course,only_hole=None):
     if incident.get('shot_id')!=item['id'] or incident.get('status')=='cancelled' or incident.get('phase')!='closed' or incident.get('cause') not in ('ob','water'):continue
     penalties=any(v.get('kind')=='penalty' and v.get('active',True) and v.get('incident_id')==incident['id'] for v in flow['sequence'])
     ball=flow['balls'][item['ball_id']]
-    confirmed=penalties or ball.get('status') in ('ob','water') or (incident['cause']=='water' and ball.get('inside_penalty_area'))
+    confirmed=incident.get('confirmation')=='user_confirmed' or penalties or ball.get('status') in ('ob','water') or (incident['cause']=='water' and ball.get('inside_penalty_area'))
     if confirmed:hazards.append(incident['cause'])
    surface=None;surface_evidence=None
    if landing or item.get('landing_report'):
@@ -94,41 +90,3 @@ def records(state,number):
   for shot in data.get('shots',[]):result.append(dict(shot,round_id=rid))
  if cache is not None:cache[key]=result
  return result
-
-def _assess(state,number,origin,target,club=None):
- if not origin or not target:return dict(weight=0,samples=0,failures=0,successes=0,clubs=[])
- distance=haversine(origin,target);failures=set();successes=set();samples=set();clubs=set()
- for row in records(state,number):
-  if row.get('distance_valid') is False:continue
-  old_origin=row.get('origin');landing=row.get('landing')
-  if not old_origin or not landing or haversine(origin,old_origin)>25:continue
-  if club and row.get('club') and _club(club)!=_club(row['club']):continue
-  old_distance=haversine(old_origin,landing)
-  if not old_distance or not distance or abs(old_distance-distance)>max(25,distance*.25):continue
-  lat=math.cos(math.radians(origin['latitude']))
-  def bearing(a,b):return math.atan2((b['longitude']-a['longitude'])*lat,b['latitude']-a['latitude'])
-  angle=abs((bearing(origin,target)-bearing(old_origin,landing)+math.pi)%(2*math.pi)-math.pi)
-  if angle>math.radians(15) and haversine(target,landing)>25:continue
-  identity=(row['round_id'],row['id']);samples.add(identity)
-  if row.get('club'):clubs.add(row['club'])
-  if row.get('hazards'):failures.add(identity)
-  elif row.get('landing_surface') in ('fairway','green'):successes.add(identity)
- return dict(weight=min(3,max(0,len(failures)-1)),samples=len(samples),failures=len(failures),successes=len(successes),clubs=sorted(clubs))
-
-def assess(state,number,origin,target,club=None):
- if not origin or not target:return _assess(state,number,origin,target,club)
- cache=_geometry_cache.get();j=state.get('journey',{})
- key=('historical_route_assessment',id(j),(j.get('round') or {}).get('id'),fact_value({'facts':state.get('facts',{})},'context.course_snapshot'),number,origin['latitude'],origin['longitude'],target['latitude'],target['longitude'],_club(club))
- if cache is not None and key in cache:return cache[key]
- result=_assess(state,number,origin,target,club)
- if cache is not None:cache[key]=result
- return result
-
-def weight(state,number,origin,target,club=None):return assess(state,number,origin,target,club)['weight']
-
-def note(state,number,origin,target,club=None):
- """History informs ranking internally; do not add historical narration to advice."""
- return ''
-
-def selection_note(state,number,origin,candidates,selected):
- return ''

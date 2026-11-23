@@ -53,7 +53,7 @@ class Components:
   with _LOCK:
    raw=_CACHE.get(key)
    if raw is not None:_CACHE.move_to_end(key);return raw
-  row=self.db.execute('SELECT data FROM state_components WHERE owner=? AND digest=?',(self.owner,digest)).fetchone()
+  row=self.db.execute('SELECT data FROM state_components WHERE owner=%s AND digest=%s',(self.owner,digest)).fetchone()
   if row is None:raise ValueError('stored component missing for authenticated owner')
   raw=row[0]
   if hashlib.sha256(raw.encode()).hexdigest()!=digest:raise ValueError('stored component checksum mismatch')
@@ -75,21 +75,21 @@ class Components:
   raw=canonical(values)
   if isinstance(values,LazyList) and raw==values.original:return {TAG:values.digest}
   digest=hashlib.sha256(raw.encode()).hexdigest()
-  self.db.execute('INSERT OR IGNORE INTO state_components(owner,digest,data) VALUES(?,?,?)',(self.owner,digest,raw))
+  self.db.execute('INSERT INTO state_components(owner,digest,data) VALUES(%s,%s,%s) ON CONFLICT(owner,digest) DO NOTHING',(self.owner,digest,raw))
   self.cache(digest,raw);return {TAG:digest}
  def receipt_bucket(self,aggregate,name):
   return hashlib.sha256(json.dumps([self.owner,aggregate,name],separators=(',',':')).encode()).digest()
  def ensure_bucket(self,aggregate,name):
   bucket=self.receipt_bucket(aggregate,name)
-  self.db.execute('INSERT OR IGNORE INTO receipt_buckets(id,owner,aggregate_id,name) VALUES(?,?,?,?)',(bucket,self.owner,aggregate,name))
+  self.db.execute('INSERT INTO receipt_buckets(id,owner,aggregate_id,name) VALUES(%s,%s,%s,%s) ON CONFLICT DO NOTHING',(bucket,self.owner,aggregate,name))
   return bucket
  def encode(self,value,path=()):
   if isinstance(value,ReceiptMap):return value.flush()
   if isinstance(value,dict) and len(path)==2 and path[0]=='journey' and path[1].endswith('receipts') and self.aggregate:
    from round_state import canonical
    bucket=self.ensure_bucket(self.aggregate,path[1])
-   self.db.execute('DELETE FROM state_receipts WHERE bucket_id=?',(bucket,))
-   self.db.executemany('INSERT INTO state_receipts(bucket_id,receipt_id,data) VALUES(?,?,?)',[(bucket,k,canonical(v)) for k,v in value.items()])
+   self.db.execute('DELETE FROM state_receipts WHERE bucket_id=%s',(bucket,))
+   self.db.executemany('INSERT INTO state_receipts(bucket_id,receipt_id,data) VALUES(%s,%s,%s)',[(bucket,k,canonical(v)) for k,v in value.items()])
    return {_RECEIPTS:dict(aggregate=self.aggregate,name=path[1])}
   if isinstance(value,LazyList):return self.store(value)
   if isinstance(value,dict):return {k:self.encode(v,path+(str(k),)) for k,v in value.items()}
@@ -110,10 +110,11 @@ class Components:
 
 def external(path):
  if not path:return False
- if path[0]=='evidence' and path[-1] in ('display_paths','surface_zones','objects') and 'holes' in path:return True
+ if path==('journey','shared_web_package','items'):return True
+ if path[0]=='evidence' and path[-1] in ('display_paths','surface_zones','objects','simulation_boundary_rings','boundary_segments','landing_zones') and 'holes' in path:return True
  if path[:2]==('journey','history') and (path[-1]=='scores' or (path[-1]=='shots' and 'hole_history' in path)):return True
- if path[:2]==('journey','ball_rules') and path[-1] in ('sequence','incidents'):return True
- if path[:2]==('journey','confirmed_shot_distances') and path[-1]=='endpoints':return True
+ if path[:2]==('journey','history') and path[-1]=='course_basis':return True
+ if path[:2]==('journey','round_ledger') and path[-1] in ('sequence','incidents'):return True
  return False
 
 def materialize(value):
@@ -130,7 +131,7 @@ class ReceiptMap(MutableMapping):
  def __getitem__(self,key):
   if key in self.deleted:raise KeyError(key)
   if key not in self.values_cache:
-   row=self.store.db.execute('SELECT data FROM state_receipts WHERE bucket_id=? AND receipt_id=?',(self.bucket,key)).fetchone()
+   row=self.store.db.execute('SELECT data FROM state_receipts WHERE bucket_id=%s AND receipt_id=%s',(self.bucket,key)).fetchone()
    self.original[key]=row[0] if row else _MISSING
    self.values_cache[key]=json.loads(row[0]) if row else _MISSING
   value=self.values_cache[key]
@@ -143,16 +144,16 @@ class ReceiptMap(MutableMapping):
   self.deleted.discard(key);self.values_cache[key]=value
  def __delitem__(self,key):self[key];self.deleted.add(key)
  def __iter__(self):
-  rows=self.store.db.execute('SELECT receipt_id FROM state_receipts WHERE bucket_id=?',(self.bucket,)).fetchall()
+  rows=self.store.db.execute('SELECT receipt_id FROM state_receipts WHERE bucket_id=%s',(self.bucket,)).fetchall()
   keys={r[0] for r in rows}|{k for k,v in self.values_cache.items() if v is not _MISSING}
   return iter(sorted(keys-self.deleted))
  def __len__(self):
-  n=self.store.db.execute('SELECT count(*) FROM state_receipts WHERE bucket_id=?',(self.bucket,)).fetchone()[0]
+  n=self.store.db.execute('SELECT count(*) FROM state_receipts WHERE bucket_id=%s',(self.bucket,)).fetchone()[0]
   n+=sum(self.original.get(k) is _MISSING and v is not _MISSING and k not in self.deleted for k,v in self.values_cache.items())
   n-=sum(self.original.get(k) is not _MISSING for k in self.deleted)
   return n
  def items(self):
-  rows=self.store.db.execute('SELECT receipt_id,data FROM state_receipts WHERE bucket_id=?',(self.bucket,)).fetchall()
+  rows=self.store.db.execute('SELECT receipt_id,data FROM state_receipts WHERE bucket_id=%s',(self.bucket,)).fetchall()
   for key,raw in rows:
    if key not in self.values_cache:self.original[key]=raw;self.values_cache[key]=json.loads(raw)
   return [(k,v) for k,v in self.values_cache.items() if k not in self.deleted and v is not _MISSING]
@@ -160,10 +161,10 @@ class ReceiptMap(MutableMapping):
  def flush(self):
   from round_state import canonical
   self.store.ensure_bucket(self.aggregate,self.name)
-  for key in self.deleted:self.store.db.execute('DELETE FROM state_receipts WHERE bucket_id=? AND receipt_id=?',(self.bucket,key))
+  for key in self.deleted:self.store.db.execute('DELETE FROM state_receipts WHERE bucket_id=%s AND receipt_id=%s',(self.bucket,key))
   for key,value in self.values_cache.items():
    if key in self.deleted or value is _MISSING:continue
    raw=canonical(value)
    if raw==self.original.get(key):continue
-   self.store.db.execute('INSERT INTO state_receipts(bucket_id,receipt_id,data) VALUES(?,?,?) ON CONFLICT(bucket_id,receipt_id) DO UPDATE SET data=excluded.data',(self.bucket,key,raw))
+   self.store.db.execute('INSERT INTO state_receipts(bucket_id,receipt_id,data) VALUES(%s,%s,%s) ON CONFLICT(bucket_id,receipt_id) DO UPDATE SET data=excluded.data',(self.bucket,key,raw))
   return {_RECEIPTS:dict(aggregate=self.aggregate,name=self.name)}

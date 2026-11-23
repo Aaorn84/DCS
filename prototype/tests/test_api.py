@@ -1,3 +1,4 @@
+from testing.database import TestDatabase
 import json
 import os
 import tempfile
@@ -11,8 +12,8 @@ from services.api.server import Store, Problem, make_server, reply
 
 class StoreTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory()
-        self.store=Store(self.temp.name+'/test.sqlite3')
+        self.temp=TestDatabase()
+        self.store=Store(self.temp.url)
         self.alice=self.store.auth({'email':'alice@example.test','password':'safe-password-123'},True)
         self.bob=self.store.auth({'email':'bob@example.test','password':'safe-password-123'},True)
         self.user=self.alice['user']['id']
@@ -58,21 +59,28 @@ class StoreTests(unittest.TestCase):
         self.assertEqual(self.store.apply(self.user,self.op()),deleted)
         with self.assertRaises(Problem):self.store.apply(self.user,self.op(operationId='restore',baseVersion=2))
         with self.store.connect() as db:
-            receipts=' '.join(r[0] for r in db.execute('SELECT result FROM operations'))
+            receipts=' '.join(r['result'] for r in db.execute('SELECT result FROM operations'))
             self.assertNotIn('失误',receipts)
 
-    def test_score_validation_and_no_double_penalty(self):
-        scores=[{'total':6,'penalty':1,'putts':2}]+[None]*17
-        record=self.store.apply(self.user,self.op(kind='round',data={'course':'待接入','scores':scores,'status':'active'}))
-        self.assertEqual(record['data']['scores'][0]['total'],6)
-        scores[0]['penalty']=5
-        with self.assertRaises(Problem):self.store.apply(self.user,self.op(operationId='bad',kind='round',id='bad',data={'course':'x','scores':scores,'status':'active'}))
+    def test_independent_round_writes_updates_deletes_and_retries_are_closed(self):
+        from services.api.server import Engine
+        engine=Engine(self.store.path,self.user);engine.create('companion-journey')
+        before=engine.state('companion-journey')
+        try:
+            for overrides in ({},{'baseVersion':1},{'deleted':True},{'operationId':'retry'}):
+                op=self.op(kind='round',data={'course':'x','scores':[None]*18,'status':'active'},**overrides)
+                with self.assertRaises(Problem) as ctx:self.store.apply(self.user,op)
+                self.assertEqual(410,ctx.exception.status)
+            self.assertEqual(before,engine.state('companion-journey'))
+            with self.store.connect() as db:
+                self.assertEqual(0,db.execute('SELECT count(*) AS n FROM records').fetchone()['n']);self.assertEqual(0,db.execute('SELECT count(*) AS n FROM operations').fetchone()['n'])
+        finally:engine.close()
 
-    def test_unknown_score_components_remain_unknown(self):
-        scores=[{'total':6,'penalty':None,'putts':None}]+[None]*17
-        record=self.store.apply(self.user,self.op(kind='round',data={'course':'待接入','scores':scores,'status':'active'}))
-        self.assertIsNone(record['data']['scores'][0]['penalty'])
-        self.assertIsNone(record['data']['scores'][0]['putts'])
+    def test_record_snapshot_does_not_expose_retired_round_documents(self):
+        with self.store.connect() as db:
+            db.execute('INSERT INTO records VALUES(%s,%s,%s,%s,%s,%s,%s)',(self.user,'round','old',1,0,json.dumps({'scores':[None]*18}),0))
+        self.store.apply(self.user,self.op())
+        self.assertEqual(['memory'],[r['kind'] for r in self.store.snapshot(self.user)])
 
     def test_model_context_is_scoped_and_deleted_memory_absent(self):
         self.store.apply(self.user,self.op(data={'text':'ALICE_PRIVATE'}))
@@ -93,7 +101,7 @@ class StoreTests(unittest.TestCase):
 
 class HTTPTests(unittest.TestCase):
     def setUp(self):
-        self.temp=tempfile.TemporaryDirectory();self.server=make_server(self.temp.name+'/http.sqlite3',port=0)
+        self.temp=TestDatabase();self.server=make_server(self.temp.url,port=0)
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True);self.thread.start()
         self.base='http://127.0.0.1:'+str(self.server.server_port)
     def tearDown(self):
@@ -118,5 +126,13 @@ class HTTPTests(unittest.TestCase):
             self.assertEqual(self.call('/chat',{'message':'紧张'},token)[1]['provider'],'demo')
         self.assertEqual(self.call('/auth/logout',{},token)[0],200)
         self.assertEqual(self.call('/records',token=token)[0],401)
+
+    def test_authenticated_round_sync_route_rejects_create_change_and_delete(self):
+        code,auth=self.call('/auth/register',{'email':'round@example.test','password':'safe-password-123'})
+        self.assertEqual(200,code);token=auth['token']
+        for deleted in (False,True):
+            op={'operationId':'round','kind':'round','id':'round','baseVersion':0,'deleted':deleted,'data':{'course':'x','scores':[None]*18,'status':'active'}}
+            self.assertEqual(410,self.call('/sync',op,token)[0])
+        self.assertEqual([],self.call('/records',token=token)[1]['records'])
 
 if __name__=='__main__':unittest.main()

@@ -52,7 +52,8 @@ python3 -B scripts/builtin_courses.py import --source '/Users/aaron/Workspace/�
 ```python
 from round_state import Engine
 from builtin_courses import register
-engine = Engine(':memory:', 'local-test')
+import os
+engine = Engine(os.environ['CADDIE_DATABASE_URL'], 'local-test')
 engine.create('r1')
 receipt = register(engine, 'r1', 'load-noble-v1', '2026-11-06T08:00:00+08:00')
 assert not engine.state('r1')['facts']  # 不生成当前洞、球位或球杆

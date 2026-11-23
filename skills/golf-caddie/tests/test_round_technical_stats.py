@@ -11,7 +11,7 @@ class RoundTechnicalStatsTests(unittest.TestCase):
   hole=dict(number=1,par=4,simulation_positions={'tee':tee},surface_zones=[zone('f','fairway',.0005,.0015),zone('g','green',.0018,.0022)])
   seq=[dict(kind='stroke',id='a',ball_id='original',origin=tee,landing=fair),dict(kind='stroke',id='b',ball_id='original',origin=fair,landing=green)]
   flow=dict(sequence=seq,balls={'original':{'status':'active'}})
-  s=dict(facts={'context.course_snapshot':dict(value='map',valid=True)},evidence={'map':{'data':{'holes':[hole]}}},journey={'round':{'id':'r'},'ball_rules':{canonical(['r','map',1]):flow}})
+  s=dict(facts={'context.course_snapshot':dict(value='map',valid=True)},evidence={'map':{'data':{'holes':[hole]}}},journey={'round':{'id':'r'},'round_ledger':{canonical(['r','map',1]):flow}})
   score=[dict(hole=1,total=4,putts=2)]
   return s,score,{1:4},flow
  def test_fir_gir_and_putts_from_actual_shots(self):

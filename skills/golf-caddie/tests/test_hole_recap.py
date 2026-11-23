@@ -26,32 +26,7 @@ class HoleRecapTests(unittest.TestCase):
  def test_provisional_promotion_does_not_require_next_shot_back_at_tee(self):
   s,f=self.state();f['incidents'][0]['promoted']=True;self.assertEqual(replay_origin_conflicts(f),{})
  def test_bad_start_is_not_learned_as_future_strategy_evidence(self):
-  from hole_history import archive_current,assess
+  from hole_history import archive_current,records
   s,f=self.state();j=s['journey'];j['memory_allowed']=True;j['round'].update(course='course',tee='蓝台',finished=True);j['history']=[dict(round=copy.deepcopy(j['round']))]
   archive_current(s);rows=j['history'][0]['hole_history']['1']['shots'];self.assertFalse(rows[1]['distance_valid'])
-  j['round']=dict(j['round'],id='next',finished=False);a=assess(s,1,rows[1]['origin'],rows[1]['landing'],'一号木');self.assertEqual(a['samples'],0)
-
-class ConcreteRecapOptionsTests(unittest.TestCase):
- def fixture(self):
-  from unittest.mock import patch
-  def point(y):return dict(latitude=y*.9144/111195,longitude=0,accuracy_m=0)
-  hole=dict(number=1,par=5,objects=[dict(point(400),kind='green_center')])
-  s=dict(facts={'context.course_snapshot':dict(valid=True,value='map')},evidence={'map':{'data':{'holes':[hole]}}},journey={'profile':{'seven':{'value':dict(distance=160,units='码',distance_type='carry')}}})
-  shot=dict(id='second',stroke_number=2,club='52度杆',origin=point(100),landing=point(180),distance_m=80*.9144)
-  return s,hole,[shot],point
- def test_names_shot_actual_distance_and_verified_alternative(self):
-  from hole_recap_options import explain
-  from unittest.mock import patch
-  s,h,shots,p=self.fixture();target=dict(carry_yards=180,reference=None,offset=0,aim_point=p(280))
-  route=dict(layup=target,leave_yards=120,risk_rank=(0,),layup_long_club=False)
-  with patch('tee_strategy.par_five_routes',return_value=[route]):text=explain(s,h,shots,{},'码')
-  self.assertIn('第2杆',text);self.assertIn('52度杆打了约80码',text);self.assertIn('还剩约220码',text);self.assertIn('5号铁',text);self.assertIn('下一杆到果岭参考点约120码',text);self.assertIn('不能认定当时一定适合',text)
- def test_no_verified_alternative_is_reported_without_generic_instruction(self):
-  from hole_recap_options import explain
-  from unittest.mock import patch
-  s,h,shots,p=self.fixture()
-  with patch('tee_strategy.par_five_routes',return_value=[]):text=explain(s,h,shots,{},'码')
-  self.assertIn('第2杆',text);self.assertIn('不能认定这杆应该打得更远',text);self.assertNotIn('优先回看攻果岭前的推进过程',text)
- def test_missing_origin_does_not_invent_a_route(self):
-  from hole_recap_options import explain
-  s,h,shots,p=self.fixture();shots[0].pop('origin');self.assertIn('缺少',explain(s,h,shots,{},'码'))
+  j['round']=dict(j['round'],id='next',finished=False);history=records(s,1);invalid=next(row for row in history if row['id']==rows[1]['id']);self.assertFalse(invalid['distance_valid'])

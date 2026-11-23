@@ -18,7 +18,3 @@ def selection(text, *, hybrid=False, expanded=False):
   return {'key':'iron'+label[0],'label':label[0]+'号铁'}
  if label.endswith(('铁木杆','混合杆')):return {'key':'hybrid','label':label.replace('混合杆','铁木杆')}
  return {'key':'seven' if label.startswith('7') else 'long_iron','label':label}
-
-def same_label(a,b):
- def norm(t):return t.replace('号','').replace('一','1').replace('三','3')
- return norm(a)==norm(b)

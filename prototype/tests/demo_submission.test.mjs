@@ -149,7 +149,23 @@ test('map outlines survive device marker updates and redraw when geometry change
  j.simulation.paths=[{kind:'FairwayTrace',points:[{latitude:0,longitude:0},{latitude:1,longitude:1}]}];app.value(`renderMap(${JSON.stringify(j)})`);assert.notEqual(app.get('courseMap').markerLayer,layer);
 });
 test('unchanged simulated position skips background refresh but retains freshness heartbeat',()=>{
- const app=setup();app.value("activeSimulation='tee';lastSimulationRefresh=null");assert.equal(app.value('needsSimulationRefresh()'),true);
+ const app=setup();app.value("journey.simulation={hole:1,positions:{tee:{latitude:31,longitude:120.9992,accuracy_m:2}}};activeSimulation='tee';lastSimulationRefresh=null");assert.equal(app.value('needsSimulationRefresh()'),true);
  app.value("lastSimulationRefresh={key:JSON.stringify([journey?.round?.id,journey?.simulation?.hole,journey?.simulation?.attempt,31,120.9992,2]),at:Date.now()}");
  assert.equal(app.value('needsSimulationRefresh()'),false);app.value('lastSimulationRefresh.at-=46000');assert.equal(app.value('needsSimulationRefresh()'),true);
+});
+
+test('the webpage sends playing events to the shared core entry and displays its authoritative bag',async()=>{
+ const requests=[];const ui=setup(async(_path,options)=>{requests.push(JSON.parse(options.body));return reply()});ui.get('utterance').value='7号铁';await ui.submit();assert.equal(requests[0].action,'core_event');
+ ui.value(`renderCarry(${JSON.stringify({...state,profile:{three_wood:{value:{distance:240,distance_type:'carry',units:'码'}}},core_carry:[{label:'3号木',low:210,high:210,estimated:false},{label:'52度杆',low:0,high:85,estimated:false}]})})`);
+ assert.equal(ui.get('carryRows').children[0].children[1].textContent,'210码');assert.equal(ui.get('carryRows').children[1].children[1].textContent,'0–85码');
+});
+test('missing map positions cannot fall back to retired synthetic coordinates',()=>{
+ const ui=setup();ui.value("journey={stage:'active',round:{start_hole:2}};");assert.throws(()=>ui.value("simPosition('tee')"),/缺少该模拟位置/);
+});
+test('temporary HTTP errors keep the answer, retry button and identical web envelope',async()=>{
+ for(const status of [408,425,429,500,502,503,504]){
+  const requests=[];let attempts=0;const ui=setup(async(_path,options)=>{requests.push(options.body);return reply(attempts++?200:status)});
+  ui.get('utterance').value='确认记录';await ui.submit();assert.ok(ui.value('pending'),status);assert.equal(ui.get('retryInline').hidden,false);assert.match(ui.get('sendStatus').textContent,/已保留/);
+  await ui.get('retryInline').onclick();assert.equal(requests[0],requests[1]);assert.equal(ui.value('pending'),null);assert.equal(ui.get('utterance').value,'');
+ }
 });
