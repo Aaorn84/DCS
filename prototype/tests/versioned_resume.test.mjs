@@ -3,11 +3,9 @@ import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import fs from 'node:fs';
 import {coreFor,coreForPackage,SUPPORTED_CORES} from '../shared/core/runtime.ts';
-import {CORE_VERSION,CORE_DATASET} from '../shared/core/protocol.ts';
+import {CORE_VERSION} from '../shared/core/protocol.ts';
 import {OfflineRound} from '../apps/mobile/src/offlineRound.ts';
 import {savePackage} from '../apps/mobile/src/immutablePackage.ts';
-import {encodeLocalState} from '../apps/mobile/src/localStateCodec.ts';
-import {CheckpointStore} from '../apps/mobile/src/checkpointStore.ts';
 const hash=async s=>createHash('sha256').update(s).digest('hex');
 import {oldCheckpoint} from './fixtures/old_checkpoint.mjs';
 test('old ninth-hole checkpoint resumes offline under bundled original core and new games use current core',async()=>{

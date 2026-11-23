@@ -1,7 +1,7 @@
 """Post-round analysis and opt-in coaching; no golf command execution."""
 import re
 from application_questions import QUESTIONS
-from round_view import summary,compare
+from round_view import summary
 
 def handle(s,p,seq,now,ask,result,next_round):
  j=s['journey'];text=p['text'].strip();stage=j['stage']

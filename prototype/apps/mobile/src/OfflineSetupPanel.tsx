@@ -1,8 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {View,Text,Pressable,StyleSheet} from 'react-native';
-import type {CourseLibrary,SetupDraft} from './courseLibrary';
+import type {CourseLibrary} from './courseLibrary';
 import {bag} from '../../../shared/core/bag';
-import {setupProfile} from '../../../shared/core/offlineSetup';
 import {setupPrompt,setupChoices} from './localSetup';
 type Props={library:CourseLibrary;state:Awaited<ReturnType<CourseLibrary['read']>>;busy:boolean;answer:(text:string)=>Promise<unknown>;refresh:()=>Promise<unknown>;download:(id:string,tee:string)=>Promise<unknown>;remove:(id:string,tee:string)=>Promise<unknown>;open:(id:string)=>Promise<unknown>;start:()=>Promise<unknown>;run:(fn:()=>Promise<unknown>)=>void};
 export default function OfflineSetupPanel(p:Props){

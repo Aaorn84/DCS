@@ -1,11 +1,11 @@
 """Web event adapter. Golf decisions and mutations execute only in shared TypeScript.
 Pre-game onboarding and post-game conversation remain application services.
 """
-import copy,re,hashlib
+import re,hashlib
 from datetime import datetime
-from round_state import require,fact_value,canonical
+from round_state import require,canonical
 from state_components import materialize
-from shared_core import web_turn,CORE_VERSION,SUPPORTED_CORES
+from shared_core import web_turn,SUPPORTED_CORES
 
 def has_model(state):
  j=state.get('journey',{});model=j.get('offline_local_round')
