@@ -2,7 +2,7 @@
 import hashlib,json,re,time,uuid
 from datetime import datetime
 from round_state import require,canonical,Conflict,initial
-from shared_core import call,CORE_VERSION,SUPPORTED_CORES
+from shared_core import call,SUPPORTED_CORES
 from state_components import materialize
 
 def identity(body):

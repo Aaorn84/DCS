@@ -61,7 +61,7 @@ CADDIE_TEST_PYTHON=/path/to/python node --experimental-transform-types --test pr
 PYTHONPATH=prototype python -m unittest discover -s prototype/tests -p 'test_*.py'
 python -m unittest discover -s skills/golf-caddie/tests -p 'test_*.py'
 node --experimental-transform-types prototype/scripts/benchmark_local_strategy.mjs
-python prototype/scripts/benchmark_shared_core.py
+python -B prototype/scripts/run_local_tests.py --suite benchmark
 ```
 
 宿主机 darwin arm64 / Python3.12 / Node24.22.3：同一凤凰山四、五杆洞发球场景，各5轮、60样本。旧Python策略函数p50/p95约2.641/37.114ms；共用后台策略约0.834/2.967ms。Node冷启动56.908ms，在服务启动时完成；首次地图注册计划25.360ms。算法与策略选择有所调整，此为同场景计算链路对比，不是相同输出算法的微基准。

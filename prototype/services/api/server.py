@@ -351,7 +351,7 @@ class Handler(BaseHTTPRequestHandler):
                     response=offline_sync.synchronize(engine,body)
                     return dict(response,journey=view(engine.state(rid,lazy=True)))
                 if action=='core_plan':
-                    from offline_sync import require_owner,row,AGGREGATE
+                    from offline_sync import require_owner,row
                     lease=require_owner(engine,body)
                     if lease['status']!='active':raise Problem(409,'请先激活本场记录权')
                     from state_components import materialize

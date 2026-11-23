@@ -1,5 +1,5 @@
 """Owner-scoped event store; all golf rules execute in the shared core."""
-import copy,hashlib,json,math,re,time
+import hashlib,json,math,time
 VERSION='1.0.0'
 class StateError(ValueError):
     pass

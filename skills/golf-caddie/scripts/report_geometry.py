@@ -1,5 +1,5 @@
 """Read-only surface classification for reports; never produces a golf strategy."""
-import math,copy
+import math
 
 def inside(box,p):
     dy=p.get('accuracy_m',0)/111000;dx=dy/max(.05,math.cos(math.radians(p['latitude'])))
@@ -7,7 +7,6 @@ def inside(box,p):
     return w<=p['longitude']-dx and p['longitude']+dx<=e and s<=p['latitude']-dy and p['latitude']+dy<=n
 
 from surface_uncertainty import polygon_contains as _uncertainty_contains
-from round_state import fact_value,canonical
 from contextvars import ContextVar
 from functools import wraps
 _geometry_cache=ContextVar('planning_geometry_cache',default=None)

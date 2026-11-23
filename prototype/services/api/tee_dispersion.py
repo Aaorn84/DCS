@@ -1,6 +1,6 @@
 """Final-rest tee dispersion, never Carry or penalty probability. No guessed targets."""
 import math,copy
-from round_state import canonical,fact_value
+from round_state import canonical
 from shot_evidence import haversine
 
 def sync(state):

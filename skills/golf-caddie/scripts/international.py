@@ -233,7 +233,6 @@ def reduce_event(s,p,seq,now):
    result={**out,'source_text':source,'text':source if native or not source else MESSAGES[cfg['locale']]['translation_required'],
            'speak_allowed':bool(out.get('speak_allowed')) and native,
            'status':'processed' if native or not source else 'translation_required','semantic_event':c}
- from round_state import fact_value
  if s.get('journey',{}).get('quiet'):
   result={**result,'text':'','speak_allowed':False}
  i['receipts'][eid]=digest

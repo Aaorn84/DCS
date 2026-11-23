@@ -1,5 +1,5 @@
 """Read-only score and stroke presentation from the shared core projection."""
-from round_state import fact_value,canonical
+from round_state import fact_value
 def summary(s):
     rows=[]
     for i in range(1,19):
